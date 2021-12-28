@@ -2,7 +2,7 @@
 
 https://docs.github.com/ja/pages/quickstart
 
-を参考に進める
+を参考に進めます。
 
 ![image](https://user-images.githubusercontent.com/18366858/147394273-b0d583c6-fc88-4bb7-b64b-885baa698360.png)
 
@@ -81,4 +81,3 @@ Hello, World!!
 _config.yml  go.mod  how-to-create.md  index.html  main.go
 [~/go/src/github.com/ludwig125/githubpages] $
 ```
-
