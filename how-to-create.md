@@ -60,25 +60,33 @@ https://ludwig125.github.io/githubpages/
 
 ![image](https://user-images.githubusercontent.com/18366858/147394610-fa6b9508-32ed-4bc9-8efb-d9a143a2d255.png)
 
-# githubpages をローカルでテストする（あとで）
+# go wasm を github pages で動かす
 
-git に push してから毎回待つのは面倒なので、手元でさっと確認するために以下の手順をしてみます。
+2021/12/30 の時点で、github pages で Web ページを公開する方法は３通りしかないようです
 
-https://docs.github.com/ja/pages/setting-up-a-github-pages-site-with-jekyll/testing-your-github-pages-site-locally-with-jekyll
+- master ブランチ
+- master ブランチ上の `docs/` フォルダ
+- gh-pages ブランチ
 
-# go の wasm
+- 参考：https://github.community/t/can-i-define-a-custom-source-or-folder-from-which-my-site-hosted-on-github-pages-can-load-from/10237
+
+github リポジトリでは今後`master`ではなく`main`ブランチがデフォルトになったので、今回は`main`ブランチの`docs/`以下に wasm ファイルをおいてみます。
 
 ```
-[~/go/src/github.com/ludwig125/githubpages] $g mv index.md index.html
-[~/go/src/github.com/ludwig125/githubpages] $go mod init
-go: creating new go.mod: module github.com/ludwig125/githubpages
-go: to add module requirements and sums:
-        go mod tidy
-[~/go/src/github.com/ludwig125/githubpages] $go mod tidy
-[~/go/src/github.com/ludwig125/githubpages] $go mod tidy
-[~/go/src/github.com/ludwig125/githubpages] $go run main.go
-Hello, World!!
-[~/go/src/github.com/ludwig125/githubpages] $ls
-_config.yml  go.mod  how-to-create.md  index.html  main.go
-[~/go/src/github.com/ludwig125/githubpages] $
+[~/go/src/github.com/ludwig125/githubpages] $ls docs
+index.html  main.go  main.wasm*  wasm_exec.js
 ```
+
+これで、以下の通り、`main`ブランチの`docs/`を選んで`Save`します。
+
+![image](https://user-images.githubusercontent.com/18366858/147704500-860b4f75-3973-41fa-afe0-3b9373c5c7de.png)
+
+30 秒ほど待つと、
+`https://ludwig125.github.io/githubpages/`に更新が反映されて以下の通り、go wasm の結果が見られるようになりました。
+
+![image](https://user-images.githubusercontent.com/18366858/147704625-c8fa5d48-bcec-46df-935a-81e27ba539af.png)
+
+これで、githubpages で Go の wasm の Web ページを公開することができるようになりました。
+
+以降、main ブランチを修正すれば、この Web ページも更新されるはずです。
+毎回反映を待つのが嫌だったり、ローカルで確認したい場合は`goexec`を使えばいいわけです。
