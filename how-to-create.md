@@ -159,6 +159,12 @@ $ cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
 </html>
 ```
 
+上のコードで重要なのは以下の２つです
+
+- `<script src="wasm_exec.js"></script>`
+- `WebAssembly.instantiateStreaming`
+  - これは Javascript API で、wasm ファイルの読み込みを可能にします
+
 https://github.com/golang/go/wiki/WebAssembly#getting-started
 には、ブラウザが`WebAssembly.instantiateStreaming`に対応していない場合は `polyfill`を使うようにと書かれていますが、私の環境では普通に実行できたのでここではこのまま使用しました。
 
