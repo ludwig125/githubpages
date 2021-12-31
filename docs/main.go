@@ -14,12 +14,12 @@ func main() {
 }
 
 func add(this js.Value, args []js.Value) interface{} {
-	println(js.ValueOf(args[0].Int() + args[1].Int()).String())
+	println(args[0].Int() + args[1].Int())
 	return nil
 }
 
 func subtract(this js.Value, args []js.Value) interface{} {
-	println(js.ValueOf(args[0].Int() - args[1].Int()).String())
+	println(args[0].Int() - args[1].Int())
 	return nil
 }
 
