@@ -14,9 +14,14 @@ func main() {
 	<-c
 }
 
+func registerCallbacks() {
+	js.Global().Set("add", js.FuncOf(add))
+	js.Global().Set("subtract", js.FuncOf(subtract))
+}
+
 func add(this js.Value, args []js.Value) interface{} {
-	value1 := textToStr(args[0].String())
-	value2 := textToStr(args[1].String())
+	value1 := textToStr(args[0])
+	value2 := textToStr(args[1])
 
 	int1, _ := strconv.Atoi(value1)
 	int2, _ := strconv.Atoi(value2)
@@ -28,8 +33,8 @@ func add(this js.Value, args []js.Value) interface{} {
 }
 
 func subtract(this js.Value, args []js.Value) interface{} {
-	value1 := textToStr(args[0].String())
-	value2 := textToStr(args[1].String())
+	value1 := textToStr(args[0])
+	value2 := textToStr(args[1])
 
 	int1, _ := strconv.Atoi(value1)
 	int2, _ := strconv.Atoi(value2)
@@ -40,16 +45,11 @@ func subtract(this js.Value, args []js.Value) interface{} {
 	return nil
 }
 
+func textToStr(v js.Value) string {
+	return js.Global().Get("document").Call("getElementById", v.String()).Get("value").String()
+}
+
 func printAnswer(ans int) {
 	println(ans)
 	js.Global().Get("document").Call("getElementById", "answer").Set("innerHTML", ans)
-}
-
-func textToStr(s string) string {
-	return js.Global().Get("document").Call("getElementById", s).Get("value").String()
-}
-
-func registerCallbacks() {
-	js.Global().Set("add", js.FuncOf(add))
-	js.Global().Set("subtract", js.FuncOf(subtract))
 }
