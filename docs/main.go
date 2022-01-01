@@ -15,32 +15,38 @@ func main() {
 }
 
 func add(this js.Value, args []js.Value) interface{} {
-	value1 := js.Global().Get("document").Call("getElementById", args[0].String()).Get("value").String()
-	value2 := js.Global().Get("document").Call("getElementById", args[1].String()).Get("value").String()
+	value1 := textBoxDataToStr(args[0].String())
+	value2 := textBoxDataToStr(args[1].String())
 
 	int1, _ := strconv.Atoi(value1)
 	int2, _ := strconv.Atoi(value2)
 	fmt.Println("int1:", int1, " int2:", int2)
+	ans := int1 + int2
 
-	printAnswer(int1 + int2)
+	printAnswer(ans)
 	return nil
 }
 
 func subtract(this js.Value, args []js.Value) interface{} {
-	value1 := js.Global().Get("document").Call("getElementById", args[0].String()).Get("value").String()
-	value2 := js.Global().Get("document").Call("getElementById", args[1].String()).Get("value").String()
+	value1 := textBoxDataToStr(args[0].String())
+	value2 := textBoxDataToStr(args[1].String())
 
 	int1, _ := strconv.Atoi(value1)
 	int2, _ := strconv.Atoi(value2)
 	fmt.Println("int1:", int1, " int2:", int2)
+	ans := int1 - int2
 
-	printAnswer(int1 - int2)
+	printAnswer(ans)
 	return nil
 }
 
 func printAnswer(ans int) {
 	println(ans)
 	js.Global().Get("document").Call("getElementById", "answer").Set("innerHTML", ans)
+}
+
+func textBoxDataToStr(s string) string {
+	return js.Global().Get("document").Call("getElementById", s).Get("value").String()
 }
 
 func registerCallbacks() {
