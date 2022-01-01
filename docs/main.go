@@ -15,8 +15,8 @@ func main() {
 }
 
 func add(this js.Value, args []js.Value) interface{} {
-	value1 := textBoxDataToStr(args[0].String())
-	value2 := textBoxDataToStr(args[1].String())
+	value1 := textToStr(args[0].String())
+	value2 := textToStr(args[1].String())
 
 	int1, _ := strconv.Atoi(value1)
 	int2, _ := strconv.Atoi(value2)
@@ -28,8 +28,8 @@ func add(this js.Value, args []js.Value) interface{} {
 }
 
 func subtract(this js.Value, args []js.Value) interface{} {
-	value1 := textBoxDataToStr(args[0].String())
-	value2 := textBoxDataToStr(args[1].String())
+	value1 := textToStr(args[0].String())
+	value2 := textToStr(args[1].String())
 
 	int1, _ := strconv.Atoi(value1)
 	int2, _ := strconv.Atoi(value2)
@@ -45,7 +45,7 @@ func printAnswer(ans int) {
 	js.Global().Get("document").Call("getElementById", "answer").Set("innerHTML", ans)
 }
 
-func textBoxDataToStr(s string) string {
+func textToStr(s string) string {
 	return js.Global().Get("document").Call("getElementById", s).Get("value").String()
 }
 
