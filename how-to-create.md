@@ -232,3 +232,260 @@ index.html  main.go  main.wasm*  wasm_exec.js
 
 以降、main ブランチを修正すれば、この Web ページも更新されるはずです。
 毎回反映を待つのが嫌だったり、ローカルで確認したい場合は`goexec`を使えばいいわけです。
+
+# wasm で計算機
+
+もう少し複雑なケースを見てみます。
+そこで、
+https://github.com/golang/go/wiki/WebAssembly#getting-started
+の下にあった
+https://tutorialedge.net/golang/go-webassembly-tutorial/
+を参考に足し算引き算だけの計算機を作ってみます。
+
+ただ、このページは情報が古かったので、自分なりにかなり改変しました。
+その結果が以下です。
+
+## 計算機１（値は固定）
+
+`wasm-calculator` ブランチを`main`から新しく切って修正をします。
+
+### index.html
+
+```html
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>wasam-calculator</title>
+		<link rel="shortcut icon" href="#" />
+		<script src="wasm_exec.js"></script>
+		<script>
+			const go = new Go();
+			WebAssembly.instantiateStreaming(
+				fetch("main.wasm"),
+				go.importObject
+			).then((result) => {
+				go.run(result.instance);
+			});
+		</script>
+	</head>
+	<body>
+		<button onClick="add(2,3);" id="addButton">Add</button>
+		<button onClick="subtract(10,3);" id="subtractButton">Subtract</button>
+	</body>
+</html>
+```
+
+#### 説明
+
+1. `<title>wasam-calculator</title>`
+
+- Web ページのタイトルをつけてみました
+- Chrome ではこれがタブに表示されます
+
+2. <link rel="shortcut icon" href="#" />
+
+`shortcut icon`の役割は、のように設定して任意の画像をタブに出すことです。
+
+```
+<link rel="shortcut icon" href="名前" type="＜画像のパス＞">
+```
+
+この設定がないと Console 上で以下のような`favicon.ico 404 (Not Found)`のエラーが出ます
+![image](https://user-images.githubusercontent.com/18366858/147839432-73302827-80e2-486a-bae8-6b3d80b86739.png)
+
+3. button
+
+- `<button onClick="add(2,3);" id="addButton">Add</button>` のように、クリックされると`add`関数に２と３を引数に与えて実行します
+- この`add`と`subtract`の処理内容は後述の Go プログラムで定義します
+
+### main.go
+
+```golang
+package main
+
+import (
+	"fmt"
+	"syscall/js"
+)
+
+func main() {
+	c := make(chan struct{})
+
+	fmt.Println("Hello, WebAssembly!")
+	registerCallbacks()
+	<-c
+}
+
+func add(this js.Value, args []js.Value) interface{} {
+	println(args[0].Int() + args[1].Int())
+	return nil
+}
+
+func subtract(this js.Value, args []js.Value) interface{} {
+	println(args[0].Int() - args[1].Int())
+	return nil
+}
+
+func registerCallbacks() {
+	js.Global().Set("add", js.FuncOf(add))
+	js.Global().Set("subtract", js.FuncOf(subtract))
+}
+```
+
+#### 説明
+
+上のコードについて説明を書きます。
+
+1. `"syscall/js"`
+
+- Go で js の操作を行うためには syscall/js という標準パッケージを import する必要があります
+
+2. `c := make(chan struct{})`と`<-c`
+
+- ボタンを押すなどのイベント処理をするときにこれが必要になります
+- イベント処理では、まず Web ページが表示されて、そのあとユーザがボタンを押して対応する処理が走るいう順番になりますが、Go のプログラムを普通に終わらせてしまうと、ボタンを押されても対応する処理ができずに以下のように`Uncaught Error: Go program has already exited`のエラーが発生します
+
+![image](https://user-images.githubusercontent.com/18366858/147792725-59c3dbfd-9633-419a-a35b-157f07375356.png)
+
+- channel を使うことで main 関数の実行が終了するのを防ぐことができます。
+- channel を使う以外に `select {}` のように select で待ち続けることでプログラムの終了を防ぐやり方をしている人もいるようです
+
+3. `registerCallbacks()`
+
+- `js.Global().Set("property名", property)` で Javascript の property を登録することができます
+  - https://pkg.go.dev/syscall/js#Value.Set
+- ここで登録する`add`と`subtract`関数は前述の HTML に対応するものです
+
+![image](https://user-images.githubusercontent.com/18366858/147708812-809133ba-cd13-4527-bc86-1b24ef3a68f6.png)
+
+4. `js.FuncOf()`
+
+- JavaScript の関数を返します
+- この関数は以前は`js.NewCallback`という名前でしたが、Go1.12 で名前もインターフェースも大きく変わりました。そのため少し古い資料では`js.FuncOf()`ではなく`js.NewCallback`が多く使われていて、混乱の原因になっています
+  - https://pkg.go.dev/syscall/js#FuncOf
+
+5. `add`と`subtract`関数
+
+- 上の`js.FuncOf()`の package の定義に沿って、`(this js.Value, args []js.Value)` を引数として取って、`interface{}` を返す関数です
+- `args[0].Int()`のように引数２つをそれぞれ Int 型にしてから足しています。
+
+### 実行
+
+ここまでで保存して、以下の通り build してサーバを立ち上げます
+
+```
+$ GOOS=js GOARCH=wasm go build -o main.wasm
+$ goexec 'http.ListenAndServe(`:8080`, http.FileServer(http.Dir(`.`)))'
+```
+
+ブラウザを見ると以下のように、`Add`ボタンや`Subtract`ボタンを押すと Console 上に結果が出力されます
+
+![image](https://user-images.githubusercontent.com/18366858/147839642-c42a6f7d-bb36-4d04-a30d-4f931a01dac2.png)
+
+## 計算機２（値は任意）
+
+決まった数の足し算引き算では面白くないので、TextBox に数字を入力できるようにします。
+
+`wasm-calculator`から新たに`wasm-calculator2`ブランチを切ります
+
+### index.html
+
+以下のように修正を加えます
+
+```
+        <body>
+-               <button onClick="add(2,3);" id="addButton">Add</button>
+-               <button onClick="subtract(10,3);" id="subtractButton">Subtract</button>
++               <input type="text" id="value1" />
++               <input type="text" id="value2" />
++
++               <button onClick="add('value1', 'value2');" id="addButton">Add</button>
++               <button onClick="subtract('value1', 'value2');" id="subtractButton">Subtract</button>
++
++               <div align="left">answer:</div>
++               <div id="answer"></div>
+        </body>
+```
+
+#### 説明
+
+- `add(2,3);`の代わりに、`text`入力値を`value1`,`value2`として受け取り、これを`add`や`subtract`に渡すようにしました
+- 後述の Go プログラム側で、`<div id="answer"></div>`に計算結果を出力するようにします
+
+### main.go
+
+```go
+package main
+
+import (
+	"fmt"
+	"strconv"
+	"syscall/js"
+)
+
+func main() {
+	c := make(chan struct{})
+
+	fmt.Println("Hello, WebAssembly!")
+	registerCallbacks()
+	<-c
+}
+
+func registerCallbacks() {
+	js.Global().Set("add", js.FuncOf(add))
+	js.Global().Set("subtract", js.FuncOf(subtract))
+}
+
+func add(this js.Value, args []js.Value) interface{} {
+	value1 := textToStr(args[0])
+	value2 := textToStr(args[1])
+
+	int1, _ := strconv.Atoi(value1)
+	int2, _ := strconv.Atoi(value2)
+	fmt.Println("int1:", int1, " int2:", int2)
+	ans := int1 + int2
+
+	printAnswer(ans)
+	return nil
+}
+
+func subtract(this js.Value, args []js.Value) interface{} {
+	value1 := textToStr(args[0])
+	value2 := textToStr(args[1])
+
+	int1, _ := strconv.Atoi(value1)
+	int2, _ := strconv.Atoi(value2)
+	fmt.Println("int1:", int1, " int2:", int2)
+	ans := int1 - int2
+
+	printAnswer(ans)
+	return nil
+}
+
+func textToStr(v js.Value) string {
+	return js.Global().Get("document").Call("getElementById", v.String()).Get("value").String()
+}
+
+func printAnswer(ans int) {
+	println(ans)
+	js.Global().Get("document").Call("getElementById", "answer").Set("innerHTML", ans)
+}
+
+```
+
+#### 説明
+
+1. `textToStr`
+
+- HTML の一行 Text ボックスを`getElementById`で取得します
+- この関数で、Javascript の世界の値を Go の文字列として変換しています
+
+2. `printAnswer`
+
+- 計算結果を Print して、そのあと HTML 側で用意した`answer`に値をセットします
+
+### 実行結果
+
+![image](https://user-images.githubusercontent.com/18366858/147861008-8b017e5d-8516-4fc7-9e04-8d20fa65820e.png)
+
+左のテキスト入力欄と右のテキスト入力欄の値の和や差が answer としてブラウザ上にプリントされることが確認できました
