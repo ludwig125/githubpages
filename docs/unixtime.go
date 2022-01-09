@@ -11,7 +11,6 @@ func unixtime() {
 	js.Global().Call("setInterval", js.FuncOf(clock), "200")
 
 	getElementByID("in").Call("addEventListener", "input", js.FuncOf(convTime))
-
 }
 
 func clock(this js.Value, args []js.Value) interface{} {
@@ -24,7 +23,7 @@ func clock(this js.Value, args []js.Value) interface{} {
 
 func convTime(this js.Value, args []js.Value) interface{} {
 	in := getElementByID("in").Get("value").String()
-	date, err := unixtimeToDate(in))
+	date, err := unixtimeToDate(in)
 	if err != nil {
 		getElementByID("out").Set("value", js.ValueOf("不正な時刻です"))
 		return nil
