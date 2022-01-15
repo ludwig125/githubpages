@@ -168,6 +168,11 @@ $ cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
 https://github.com/golang/go/wiki/WebAssembly#getting-started
 には、ブラウザが`WebAssembly.instantiateStreaming`に対応していない場合は `polyfill`を使うようにと書かれていますが、私の環境では普通に実行できたのでここではこのまま使用しました。
 
+この辺の WASM を使う場合の説明は以下が詳しいです
+
+- https://developer.mozilla.org/en-US/docs/WebAssembly/Loading_and_running
+  > Fetch を使用する
+
 ここまでの段階で以下のファイルが存在します。
 
 ```
@@ -355,6 +360,7 @@ func registerCallbacks() {
 - `js.Global().Set("property名", property)` で Javascript の property を登録することができます
   - https://pkg.go.dev/syscall/js#Value.Set
 - ここで登録する`add`と`subtract`関数は前述の HTML に対応するものです
+- Go 側で関数を定義して、イベント発生時に javascript として実行されるものなのでいわゆる Callback 関数です
 
 ![image](https://user-images.githubusercontent.com/18366858/147708812-809133ba-cd13-4527-bc86-1b24ef3a68f6.png)
 
@@ -368,6 +374,16 @@ func registerCallbacks() {
 
 - 上の`js.FuncOf()`の package の定義に沿って、`(this js.Value, args []js.Value)` を引数として取って、`interface{}` を返す関数です
 - `args[0].Int()`のように引数２つをそれぞれ Int 型にしてから足しています。
+- この引数のうち、`this`は JavaScript の [global object](https://developer.mozilla.org/en-US/docs/Glossary/Global_object) で、`args`は `add`（または`subtract`）関数に与えられる引数に相当します
+
+#### `Value`について
+
+この`Value`が曲者です。
+
+これが Javascript の世界と Go の世界の橋渡しをするものですが、型が動的なので、
+例えば Int に変換しようとしてできない、などの場合にいとも簡単に Panic します
+
+どこで問題が起きたのか非常に分かりにくいです
 
 ### 実行
 
@@ -489,3 +505,41 @@ func printAnswer(ans int) {
 ![image](https://user-images.githubusercontent.com/18366858/147861008-8b017e5d-8516-4fc7-9e04-8d20fa65820e.png)
 
 左のテキスト入力欄と右のテキスト入力欄の値の和や差が answer としてブラウザ上にプリントされることが確認できました
+
+# Go の WASM はライブラリではなくアプリケーションである
+
+`GoのWASMはライブラリではなくアプリケーションである` この言葉が最初が分かりませんでしたが、以下のような意味だと理解しています
+
+- C/C++/Rust などの言語の WASM では、JavaScript に変換して「ライブラリ」として扱うことができる
+- Go の WASM は、「アプリケーション」なので、HTML 側から`実行`しないといけない
+
+そのため、イベント処理をするときは Go 側で終了させないようにチャネルで永久に待たせるとか、HTML 側で以下のように`go.run`で Go を実行させる処理が必要になります
+
+```
+const go = new Go();
+WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+	go.run(result.instance);
+});
+```
+
+# 参考
+
+https://www.aaron-powell.com/posts/2019-02-05-golang-wasm-2-writing-go/
+
+js
+https://hmaster.net/table4.html
+http://mh.rgr.jp/memo/mh0025.htm
+
+wasm clock
+https://github.com/Yaoir/ClockExample-Go-WebAssembly
+
+click event
+https://ja.javascript.info/events-change-input
+https://www.w3schools.com/howto/howto_html_clear_input.asp
+
+分かりやすい
+https://dev.bitolog.com/go-in-the-browser-using-webassembly/
+
+https://golangbot.com/go-webassembly-dom-access/
+
+https://github.com/golangbot/webassembly/blob/tutorial2/cmd/wasm/main.go
