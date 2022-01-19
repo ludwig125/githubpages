@@ -18,12 +18,31 @@
 		<input type="text" id="value1" />
 		<input type="text" id="value2" />
 
-		<button onClick="add('value1', 'value2');" id="addButton">Add</button>
-		<button onClick="subtract('value1', 'value2');" id="subtractButton">
+		<button onClick="addOrErr('value1', 'value2');" id="addButton">Add</button>
+		<button onClick="subtractOrErr('value1', 'value2');" id="subtractButton">
 			Subtract
 		</button>
 
 		<div align="left">answer:</div>
 		<div id="answer"></div>
+
+		<script>
+			function checkError(result) {
+				if (result != null && "error" in result) {
+					console.log("Go return value", result);
+					answer.innerHTML = "";
+					alert(result.error);
+				}
+			}
+
+			var addOrErr = function (value1, value2) {
+				var result = calcAdd(value1, value2);
+				checkError(result);
+			};
+			var subtractOrErr = function (value1, value2) {
+				var result = calcSubtract(value1, value2);
+				checkError(result);
+			};
+		</script>
 	</body>
 </html>
