@@ -506,7 +506,363 @@ func printAnswer(ans int) {
 
 左のテキスト入力欄と右のテキスト入力欄の値の和や差が answer としてブラウザ上にプリントされることが確認できました
 
-# Go の WASM はライブラリではなくアプリケーションである
+## 計算機３（エラーハンドリング）
+
+前述までで、計算機としての最低限の機能は作れましたが、いくつか重要な欠点があります。
+
+1. 数値のバリデーションチェックがない＆エラーハンドリングできていない
+
+- テキスト欄に`a`や`あ`など、整数変換ができないものが入力された場合、`int1, err := strconv.Atoi("a")`の結果、int1 には `0`が設定されてしまいます
+- このとき、`err`を適切にエラーハンドリングしたいです
+
+2. Web ページ上でエラーが分かりにくい
+
+- 上のエラーハンドリングができたら、Web ページにエラーメッセージを出して不正な入力値であることを分かりやすくしたいです
+
+3. Panic を起こしやすい
+
+```
+js.Global().Get("document").Call("getElementById", v.String()).Get("value").String()
+```
+
+- 例えば`textToStr`関数のこの式ですが、`getElementById`で対象の ID が取得できない状態で`Get`メソッドを呼ぶと Panic を起こします
+- 同様に、`Get("value")`の結果が空の時に`String`メソッドを呼んでも Panic となります
+- 可能な限り Panic で異常終了しないようにしたいです
+
+そこで、以下の資料を参考に次の通り修正しました
+
+- https://golangbot.com/go-webassembly-dom-access/
+- https://dev.bitolog.com/go-in-the-browser-using-webassembly/
+
+### main.go
+
+修正後のコードを最初に書くと以下の通りです。
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"syscall/js"
+)
+
+func main() {
+	registerCallbacks()
+	<-make(chan struct{})
+}
+
+func registerCallbacks() {
+	js.Global().Set("calcAdd", calculatorWrapper("add"))
+	js.Global().Set("calcSubtract", calculatorWrapper("subtract"))
+}
+
+func calculatorWrapper(ope string) js.Func {
+	calcFunc := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		value1, err := getJSValue(args[0].String())
+		if err != nil {
+			return wrapResult("", err)
+		}
+		value2, err := getJSValue(args[1].String())
+		if err != nil {
+			return wrapResult("", err)
+		}
+		fmt.Println("value1:", value1, " value2:", value2)
+
+		int1, err := strconv.Atoi(value1)
+		if err != nil {
+			return wrapResult("", fmt.Errorf("failed to convert value1 to int: %v", err))
+		}
+		int2, err := strconv.Atoi(value2)
+		if err != nil {
+			return wrapResult("", fmt.Errorf("failed to convert value2 to int: %v", err))
+		}
+
+		var ans int
+		switch ope {
+		case "add":
+			ans = int1 + int2
+		case "subtract":
+			ans = int1 - int2
+		default:
+			return wrapResult("", fmt.Errorf("invalid operation: %s", ope))
+		}
+		fmt.Println("Answer:", ans)
+
+		if err := setJSValue("answer", ans); err != nil {
+			return wrapResult("", err)
+		}
+		return nil
+	})
+	return calcFunc
+}
+
+func getJSValue(elemID string) (string, error) {
+	jsDoc := js.Global().Get("document")
+	if !jsDoc.Truthy() {
+		return "", errors.New("failed to get document object")
+	}
+
+	jsElement := jsDoc.Call("getElementById", elemID)
+	if !jsElement.Truthy() {
+		return "", fmt.Errorf("failed to getElementById: %s", elemID)
+	}
+
+	jsValue := jsElement.Get("value")
+	if !jsValue.Truthy() {
+		return "", fmt.Errorf("failed to Get value: %s", elemID)
+	}
+	return jsValue.String(), nil
+}
+
+func setJSValue(elemID string, value interface{}) error {
+	jsDoc := js.Global().Get("document")
+	if !jsDoc.Truthy() {
+		return errors.New("failed to get document object")
+	}
+
+	jsElement := jsDoc.Call("getElementById", elemID)
+	if !jsElement.Truthy() {
+		return fmt.Errorf("failed to getElementById: %s", elemID)
+	}
+	jsElement.Set("innerHTML", value)
+	return nil
+}
+
+func wrapResult(result string, err error) map[string]interface{} {
+	return map[string]interface{}{
+		"error":    err.Error(),
+		"response": result,
+	}
+}
+
+```
+
+#### 説明
+
+分かりやすいところから書きます
+
+1. `textToStr`関数を修正して`getJSValue`に改名
+
+```go
+func getJSValue(elemID string) (string, error) {
+	jsDoc := js.Global().Get("document")
+	if !jsDoc.Truthy() {
+		return "", errors.New("failed to get document object")
+	}
+略
+}
+```
+
+- [Truthy](https://pkg.go.dev/syscall/js#Value.Truthy) メソッドはオブジェクトが`false, 0, "", null, undefined, NaN`のどれかの時に`false`を返します
+- これを使うことで Panic を起こす前にエラーを返して呼び出しもとでエラーハンドリングできるようになります
+- 関数名はより汎用的に`getJSValue`にしました
+
+2. `printAnswer`関数を修正して`setJSValue`に改名
+
+```go
+func setJSValue(elemID string, value interface{}) error {
+	jsDoc := js.Global().Get("document")
+	if !jsDoc.Truthy() {
+		return errors.New("failed to get document object")
+	}
+
+	jsElement := jsDoc.Call("getElementById", elemID)
+	if !jsElement.Truthy() {
+		return fmt.Errorf("failed to getElementById: %s", elemID)
+	}
+	jsElement.Set("innerHTML", value)
+	return nil
+}
+```
+
+- こちらも`getJSValue`と同様に[Truthy](https://pkg.go.dev/syscall/js#Value.Truthy) で逐一判定するようにしました
+- また、値を設定したい要素の ID を`elemID`として、設定する値を`value`として引数にすることで任意の ID に対して設定できるようにしました
+- 合わせて関数名も print よりも set の方がふさわしいことと、より汎用的にするため`setJSValue`に変えました
+
+3. `add`と`subtract`関数を統合して`calculatorWrapper`でラップ
+
+```go
+func calculatorWrapper(ope string) js.Func {
+	calcFunc := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		value1, err := getJSValue(args[0].String())
+		if err != nil {
+			return wrapResult("", err)
+		}
+		value2, err := getJSValue(args[1].String())
+		if err != nil {
+			return wrapResult("", err)
+		}
+		fmt.Println("value1:", value1, " value2:", value2)
+
+		int1, err := strconv.Atoi(value1)
+		if err != nil {
+			return wrapResult("", fmt.Errorf("failed to convert value1 to int: %v", err))
+		}
+		int2, err := strconv.Atoi(value2)
+		if err != nil {
+			return wrapResult("", fmt.Errorf("failed to convert value2 to int: %v", err))
+		}
+
+		var ans int
+		switch ope {
+		case "add":
+			ans = int1 + int2
+		case "subtract":
+			ans = int1 - int2
+		default:
+			return wrapResult("", fmt.Errorf("invalid operation: %s", ope))
+		}
+		fmt.Println("Answer:", ans)
+
+		if err := setJSValue("answer", ans); err != nil {
+			return wrapResult("", err)
+		}
+		return nil
+	})
+	return calcFunc
+}
+
+func wrapResult(result string, err error) map[string]interface{} {
+	return map[string]interface{}{
+		"error":    err.Error(),
+		"response": result,
+	}
+}
+
+```
+
+- 今までは`js.FuncOf`の中身の関数を`add`や`subtract`としていましたが、それらをラップして`calculatorWrapper`にしました
+- これにより、`js.FuncOf`のインターフェースに縛られず、今回の`ope`のように自由に引数を与えることができます
+- 今回の場合は、`add`と`subtract`には共通部分が多かったのでこれらを統合して、演算部分だけ`ope`に応じて`switch`で条件分岐させるようにしました
+
+`wrapResult`:
+
+- `getJSValue`や`setJSValue`で返したエラーと返り値をこれでラップしています
+- `map[string]interface{}`として返すことで、後述の javascript でエラーハンドリングできるようになります
+- 今回`wrapResult`の中の`response`は全部空にしているので使いません。コールバック関数から値を返したい場合はここに値を設定します
+
+4. `registerCallbacks`の中で引数を指定して`calculatorWrapper`を呼ぶ
+
+```go
+func main() {
+	registerCallbacks()
+	<-make(chan struct{})
+}
+
+func registerCallbacks() {
+	js.Global().Set("calcAdd", calculatorWrapper("add"))
+	js.Global().Set("calcSubtract", calculatorWrapper("subtract"))
+}
+```
+
+- `calculatorWrapper`で統合したので、`add`と`subtract`は与える引数の違いだけになりました
+  - `calcAdd`と`calcSubtract` は後述の`index.html`の javascript で使います
+- `<-make(chan struct{})`ここは、channel の定義とまとめたほうが簡潔なのでこのようにしました
+
+### index.html
+
+index.html は以下のように修正しました。
+
+```html
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>wasam-calculator</title>
+		<link rel="shortcut icon" href="#" />
+		<script src="wasm_exec.js"></script>
+		<script>
+			const go = new Go();
+			WebAssembly.instantiateStreaming(
+				fetch("main.wasm"),
+				go.importObject
+			).then((result) => {
+				go.run(result.instance);
+			});
+		</script>
+	</head>
+	<body>
+		<input type="text" id="value1" />
+		<input type="text" id="value2" />
+
+		<button onClick="addOrErr('value1', 'value2');" id="addButton">Add</button>
+		<button onClick="subtractOrErr('value1', 'value2');" id="subtractButton">
+			Subtract
+		</button>
+
+		<div align="left">answer:</div>
+		<div id="answer"></div>
+
+		<script>
+			function checkError(result) {
+				if (result != null && "error" in result) {
+					console.log("Go return value", result);
+					answer.innerHTML = "";
+					alert(result.error);
+				}
+			}
+
+			var addOrErr = function (value1, value2) {
+				var result = calcAdd(value1, value2);
+				checkError(result);
+			};
+			var subtractOrErr = function (value1, value2) {
+				var result = calcSubtract(value1, value2);
+				checkError(result);
+			};
+		</script>
+	</body>
+</html>
+```
+
+#### 説明
+
+- いままで`onClick`で直接 Go で書いた`add`コールバック関数を呼び出していましたが、ここでは`addOrErr`という新しく定義した関数を呼び出しています
+- `addOrErr`の中身を分かりやすいように`checkError`部分を展開して書くと以下の通りです
+
+```js
+var addOrErr = function (value1, value2) {
+	var result = calcAdd(value1, value2);
+	if (result != null && "error" in result) {
+		console.log("Go return value", result);
+		answer.innerHTML = "";
+		alert(result.error);
+	}
+};
+```
+
+- この関数は、テキスト欄から入力された`value1`, `value2`を引数として取ります
+- 内部で、Go 側で用意した`calcAdd`コールバック関数を呼び出して`result`を返します
+- この`result`には`wrapResult`で入れたマップデータが入っています
+- そこで、`result.error`を見ることで Go 側の処理でエラーを返したかどうかが判定できます
+- ここでは、エラーがある場合は answer の値を空にして、alert でポップアップを出すようにしています
+- 【注意点】今回は、`answer`が div の HTML タグなので`innerHTML`を使っていますが、もし`answer`が`input`や`textarea`などの入力フォームの場合は`answer.value = "";`とするのが正しいです
+
+### 実行結果
+
+テキスト欄に、`5`と`3`を入れて`Add`ボタンを押すと以下のように`8`が表示されます（計算機２と同じ）
+![image](https://user-images.githubusercontent.com/18366858/150023478-828facb9-973e-4a6e-9b40-e6e1af12e053.png)
+
+テキスト欄に、`5`と`3`を入れて`Subtract`ボタンを押すと以下のように`2`が表示されます（計算機２と同じ）
+
+![image](https://user-images.githubusercontent.com/18366858/150023507-74f9e023-7e06-4261-82d0-8973b14e3ce6.png)
+
+`5`の代わりに`a`などの数値変換できない文字を入れると、Go で設定した`failed to convert value1 to int: strconv.Atoi: parsing "a": invalid syntax` のエラーがポップアップとして表示されます
+また、Console に`Go return value`が表示されていることが分かります
+
+![image](https://user-images.githubusercontent.com/18366858/150023588-bd920961-15b2-45b3-8548-3b5c368ce053.png)
+
+ポップアップを閉じると`answer`の中身が消えています
+
+- `answer`が空になってからポップアップが表示されると思っていましたがよしとします
+- ここの実行順序は分かっていません
+
+![image](https://user-images.githubusercontent.com/18366858/150216750-2b5e8bc3-e17a-4346-a3a6-3d02cae73e42.png)
+
+以上で、エラーハンドリングまで対応できるようになりました
+
+# [脱線] Go の WASM はライブラリではなくアプリケーションである
 
 `GoのWASMはライブラリではなくアプリケーションである` この言葉が最初が分かりませんでしたが、以下のような意味だと理解しています
 
