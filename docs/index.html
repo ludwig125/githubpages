@@ -2,30 +2,12 @@
 	<head>
 		<meta charset="utf-8" />
 		<link rel="shortcut icon" href="#" />
-		<script src="wasm_exec.js"></script>
-		<script>
-			const go = new Go();
-			WebAssembly.instantiateStreaming(
-				fetch("main.wasm"),
-				go.importObject
-			).then((result) => {
-				go.run(result.instance);
-			});
-		</script>
 	</head>
 	<body>
-		<a href="unixtime.html">unixtime</a>
-		<!-- <a href="fibonacci.html">fibonacci</a> -->
-
-		<input type="text" id="value1" />
-		<input type="text" id="value2" />
-
-		<button onClick="add('value1', 'value2');" id="addButton">Add</button>
-		<button onClick="subtract('value1', 'value2');" id="subtractButton">
-			Subtract
-		</button>
-
-		<div align="left">answer:</div>
-		<div id="answer"></div>
+		<ul>
+			<li><a href="./calc3/calc3.html">Calculator</a></li>
+			<li><a href="unixtime.html">unixtime</a></li>
+			<!-- <a href="fibonacci.html">fibonacci</a> -->
+		</ul>
 	</body>
 </html>
