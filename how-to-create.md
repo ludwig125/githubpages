@@ -534,6 +534,8 @@ js.Global().Get("document").Call("getElementById", v.String()).Get("value").Stri
 - https://golangbot.com/go-webassembly-dom-access/
 - https://dev.bitolog.com/go-in-the-browser-using-webassembly/
 
+`wasm-calculator2`から新たに`wasm-calculator3`ブランチを切って修正しました
+
 ### main.go
 
 修正後のコードを最初に書くと以下の通りです。
@@ -643,7 +645,7 @@ func wrapResult(result string, err error) map[string]interface{} {
 
 分かりやすいところから書きます
 
-1. `textToStr`関数を修正して`getJSValue`に改名
+##### 1. `textToStr`関数を修正して`getJSValue`に改名
 
 ```go
 func getJSValue(elemID string) (string, error) {
@@ -659,7 +661,7 @@ func getJSValue(elemID string) (string, error) {
 - これを使うことで Panic を起こす前にエラーを返して呼び出しもとでエラーハンドリングできるようになります
 - 関数名はより汎用的に`getJSValue`にしました
 
-2. `printAnswer`関数を修正して`setJSValue`に改名
+##### 2. `printAnswer`関数を修正して`setJSValue`に改名
 
 ```go
 func setJSValue(elemID string, value interface{}) error {
@@ -681,7 +683,7 @@ func setJSValue(elemID string, value interface{}) error {
 - また、値を設定したい要素の ID を`elemID`として、設定する値を`value`として引数にすることで任意の ID に対して設定できるようにしました
 - 合わせて関数名も print よりも set の方がふさわしいことと、より汎用的にするため`setJSValue`に変えました
 
-3. `add`と`subtract`関数を統合して`calculatorWrapper`でラップ
+##### 3. `add`と`subtract`関数を統合して`calculatorWrapper`でラップ
 
 ```go
 func calculatorWrapper(ope string) js.Func {
@@ -743,7 +745,7 @@ func wrapResult(result string, err error) map[string]interface{} {
 - `map[string]interface{}`として返すことで、後述の javascript でエラーハンドリングできるようになります
 - 今回`wrapResult`の中の`response`は全部空にしているので使いません。コールバック関数から値を返したい場合はここに値を設定します
 
-4. `registerCallbacks`の中で引数を指定して`calculatorWrapper`を呼ぶ
+##### 4. `registerCallbacks`の中で引数を指定して`calculatorWrapper`を呼ぶ
 
 ```go
 func main() {
@@ -848,7 +850,9 @@ var addOrErr = function (value1, value2) {
 
 ![image](https://user-images.githubusercontent.com/18366858/150023507-74f9e023-7e06-4261-82d0-8973b14e3ce6.png)
 
-`5`の代わりに`a`などの数値変換できない文字を入れると、Go で設定した`failed to convert value1 to int: strconv.Atoi: parsing "a": invalid syntax` のエラーがポップアップとして表示されます
+`5`の代わりに`a`などの数値変換できない文字を入れると、
+Go で設定した`failed to convert value1 to int: strconv.Atoi: parsing "a": invalid syntax` のエラーがポップアップとして表示されます。
+
 また、Console に`Go return value`が表示されていることが分かります
 
 ![image](https://user-images.githubusercontent.com/18366858/150023588-bd920961-15b2-45b3-8548-3b5c368ce053.png)
