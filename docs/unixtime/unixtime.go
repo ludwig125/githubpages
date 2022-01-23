@@ -7,10 +7,20 @@ import (
 	"time"
 )
 
+func main() {
+	unixtime()
+
+	<-make(chan struct{})
+}
+
 func unixtime() {
 	js.Global().Call("setInterval", js.FuncOf(clock), "200")
 
 	getElementByID("in").Call("addEventListener", "input", js.FuncOf(convTime))
+}
+
+func getElementByID(targetID string) js.Value {
+	return js.Global().Get("document").Call("getElementById", targetID)
 }
 
 func clock(this js.Value, args []js.Value) interface{} {
