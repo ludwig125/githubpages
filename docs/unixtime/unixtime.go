@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"syscall/js"
@@ -14,9 +15,36 @@ func main() {
 }
 
 func unixtime() {
+	// js.Global().Set("add", js.FuncOf(addFunction))
+	// js.Global().Set("setTimeZoneFunc", js.FuncOf(setTimeZone))
+
+	// time zoneを最初に表示させる
+	js.Global().Call("queueMicrotask", js.FuncOf(setTimeZone))
+
+	// 一定時間おきにclockを呼び出す
 	js.Global().Call("setInterval", js.FuncOf(clock), "200")
 
 	getElementByID("in").Call("addEventListener", "input", js.FuncOf(convTime))
+}
+
+func setTimeZone(this js.Value, args []js.Value) interface{} {
+	t := time.Now()
+	zone, _ := t.Zone()
+	return setJSValue("time_zone", fmt.Sprintf("(%s)", zone))
+}
+
+func setJSValue(elemID string, value interface{}) error {
+	jsDoc := js.Global().Get("document")
+	if !jsDoc.Truthy() {
+		return errors.New("failed to get document object")
+	}
+
+	jsElement := jsDoc.Call("getElementById", elemID)
+	if !jsElement.Truthy() {
+		return fmt.Errorf("failed to getElementById: %s", elemID)
+	}
+	jsElement.Set("innerHTML", value)
+	return nil
 }
 
 func getElementByID(targetID string) js.Value {

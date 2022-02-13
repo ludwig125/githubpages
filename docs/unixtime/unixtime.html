@@ -11,14 +11,72 @@
 				go.importObject
 			).then((result) => {
 				go.run(result.instance);
+				// setTimeZoneFunc();
+				// setTimeZone();
 			});
+
+			// window.onload = function () {
+			// 	console.log("test1");
+			// };
+			// document.addEventListener("DOMContentLoaded", function () {
+			// 	console.log("test2");
+			// });
+			// setTimeZoneFunc();
+
+			// async function waitGoLoad() {
+			// 	console.log("sleep 3 seconds...");
+			// 	await new Promise((s) => setTimeout(s, 3000));
+			// 	setTimeZoneFunc();
+			// }
+			// waitGoLoad();
+
+			// sample();
+
+			// async function init() {
+			// 	const go = new Go();
+			// 	let result = await WebAssembly.instantiateStreaming(
+			// 		fetch("unixtime.wasm"),
+			// 		go.importObject
+			// 	);
+			// 	go.run(result.instance);
+			// }
+			// init();
+
+			// const wasmBrowserInstantiate = async (wasmModuleUrl, importObject) => {
+			// 	let response = undefined;
+
+			// 	// Check if the browser supports streaming instantiation
+			// 	if (WebAssembly.instantiateStreaming) {
+			// 		// Fetch the module, and instantiate it as it is downloading
+			// 		response = await WebAssembly.instantiateStreaming(
+			// 			fetch(wasmModuleUrl),
+			// 			importObject
+			// 		);
+			// 	} else {
+			// 		// Fallback to using fetch to download the entire module
+			// 		// And then instantiate the module
+			// 		const fetchAndInstantiateTask = async () => {
+			// 			const wasmArrayBuffer = await fetch(wasmModuleUrl).then(
+			// 				(response) => response.arrayBuffer()
+			// 			);
+			// 			return WebAssembly.instantiate(wasmArrayBuffer, importObject);
+			// 		};
+
+			// 		response = await fetchAndInstantiateTask();
+			// 	}
+
+			// 	return response;
+			// };
 		</script>
 	</head>
 	<body>
 		<h1>UnixTimeを日付に変換するツール</h1>
 		<table border="1" align="center" width="600" height="100">
 			<tr align="center">
-				<td>現在時刻</td>
+				<td>
+					現在時刻<br />
+					<div id="time_zone">time_zone</div>
+				</td>
 				<td><div id="clock"></div></td>
 				<td><div id="clock_unixtime"></div></td>
 			</tr>
@@ -40,5 +98,36 @@
 				</td>
 			</tr>
 		</table>
+		<script>
+			// Promise.resolve().then(function () {
+			// 	setTimeZoneFunc();
+			// 	console.log("Promise.resolve().then");
+			// });
+
+			// // https://wasmbyexample.dev/examples/hello-world/hello-world.go.en-us.html
+			// const go = new Go(); // Defined in wasm_exec.js. Don't forget to add this in your index.html.
+
+			// const runWasmAdd = async () => {
+			// 	// Get the importObject from the go instance.
+			// 	const importObject = go.importObject;
+
+			// 	// Instantiate our wasm module
+			// 	const wasmModule = await wasmBrowserInstantiate(
+			// 		"unixtime.wasm",
+			// 		importObject
+			// 	);
+
+			// 	// Allow the wasm_exec go instance, bootstrap and execute our wasm module
+			// 	go.run(wasmModule.instance);
+
+			// 	setTimeZoneFunc();
+			// 	// // Call the Add function export from wasm, save the result
+			// 	// const addResult = wasmModule.instance.exports.setTimeZoneFunc();
+
+			// 	// // Set the result onto the body
+			// 	// document.body.textContent = `Hello World! addResult: ${addResult}`;
+			// };
+			// runWasmAdd();
+		</script>
 	</body>
 </html>

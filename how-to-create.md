@@ -1,3 +1,26 @@
+# 目的
+
+WebAssembly 略称 WASM に興味があったので、Go で Web ツールを作成しました。
+Web ページを無料で作れるところを探したところ、
+github pages が良さそうだったのでこれを使ってみました。
+
+## 環境と言語
+
+私は Windows 上の WSL で Ubuntu20.04 を使っています。
+
+```
+$cat /etc/os-release
+NAME="Ubuntu"
+VERSION="20.04.3 LTS (Focal Fossa)"
+ID=ubuntu
+ID_LIKE=debian
+PRETTY_NAME="Ubuntu 20.04.3 LTS"
+VERSION_ID="20.04"
+```
+
+なお、この記事に登場する言語は Go、HTML、Javascript ですが、
+私は Go は数年の開発経験があるものの、**HTML と Javascript はほぼ無知の素人** なので、手探りでの開発となりました。
+
 # githubpages の作成
 
 https://docs.github.com/ja/pages/quickstart
@@ -87,6 +110,9 @@ WebAssemblyは、幅広いプラットフォームで利用可能な一般的な
 
 ## 補足説明
 
+WebAssembly を使用すると、JavaScript と同じように Rust、C、Go などの言語で Web ツールを作成できます。これにより、既存のライブラリを移植したり、JavaScript で利用できない機能を活用したりできます。
+
+また、WebAssembly はバイナリ形式にコンパイルされるためコードの高速実行が可能になります。
 JavaScript より速度を上回ることを目標にしているらしいです。
 Go でも、Go1.11 から標準の機能として Go のコードを WebAssembly にコンパイルする機能が追加されました。
 
@@ -171,7 +197,10 @@ https://github.com/golang/go/wiki/WebAssembly#getting-started
 この辺の WASM を使う場合の説明は以下が詳しいです
 
 - https://developer.mozilla.org/en-US/docs/WebAssembly/Loading_and_running
+
   > Fetch を使用する
+
+- https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/instantiateStreaming
 
 ここまでの段階で以下のファイルが存在します。
 
@@ -198,6 +227,25 @@ $ goexec 'http.ListenAndServe(`:8080`, http.FileServer(http.Dir(`.`)))'
 注意：うまく動かないときは以下の通り Go の環境設定をする必要があります
 
 - https://go.dev/doc/install
+
+また、goexec 実行時に以下のようなエラーが出た場合は、すでに同じ Port で goexec を起動していてバッティングしている可能性があります
+
+```
+(*net.OpError)(&net.OpError{
+        Op:     (string)("listen"),
+        Net:    (string)("tcp"),
+        Source: (net.Addr)(nil),
+        Addr: (*net.TCPAddr)(&net.TCPAddr{
+                IP:   (net.IP)(nil),
+                Port: (int)(8080),
+                Zone: (string)(""),
+        }),
+        Err: (*os.SyscallError)(&os.SyscallError{
+                Syscall: (string)("bind"),
+                Err:     (syscall.Errno)(0x62),
+        }),
+})
+```
 
 サーバ起動した状態でブラウザで`http://localhost:8080/`にアクセスします。
 ちなみに、公式ドキュメントには`http://localhost:8080/index.html` となっていますが、普通の Web サーバでは `http://localhost:8080/`のようにスラッシュで終わる URL にアクセスすると自動で`index.html`を探すようになっているので同じことです。
@@ -505,6 +553,22 @@ func printAnswer(ans int) {
 ![image](https://user-images.githubusercontent.com/18366858/147861008-8b017e5d-8516-4fc7-9e04-8d20fa65820e.png)
 
 左のテキスト入力欄と右のテキスト入力欄の値の和や差が answer としてブラウザ上にプリントされることが確認できました
+
+## [脱線] Go の WASM はライブラリではなくアプリケーションである
+
+`GoのWASMはライブラリではなくアプリケーションである` この言葉が最初が分かりませんでしたが、以下のような意味だと理解しています
+
+- C/C++/Rust などの言語の WASM では、JavaScript に変換して「ライブラリ」として扱うことができる
+- Go の WASM は、「アプリケーション」なので、HTML 側から`実行`しないといけない
+
+そのため、イベント処理をするときは Go 側で終了させないようにチャネルで永久に待たせるとか、HTML 側で以下のように`go.run`で Go を実行させる処理が必要になります
+
+```
+const go = new Go();
+WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
+	go.run(result.instance);
+});
+```
 
 ## 計算機３（エラーハンドリング）
 
@@ -866,40 +930,527 @@ Go で設定した`failed to convert value1 to int: strconv.Atoi: parsing "a": i
 
 以上で、エラーハンドリングまで対応できるようになりました
 
-# [脱線] Go の WASM はライブラリではなくアプリケーションである
+「計算機１，２，３」それぞれは別のブランチに置きましたが、この「計算機３」のコードは main ブランチ上の`docs/calc3`に置きました
 
-`GoのWASMはライブラリではなくアプリケーションである` この言葉が最初が分かりませんでしたが、以下のような意味だと理解しています
+# Unixtime 変換ツール
 
-- C/C++/Rust などの言語の WASM では、JavaScript に変換して「ライブラリ」として扱うことができる
-- Go の WASM は、「アプリケーション」なので、HTML 側から`実行`しないといけない
+上の加算減算しかできない計算機より少しは使い道のありそうな、Unixtime を JST の日付に変換するツールを作ってみました
 
-そのため、イベント処理をするときは Go 側で終了させないようにチャネルで永久に待たせるとか、HTML 側で以下のように`go.run`で Go を実行させる処理が必要になります
+いきなりコードを載せると以下の通りです
+
+unixtime.go
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"syscall/js"
+	"time"
+)
+
+func main() {
+	unixtime()
+
+	<-make(chan struct{})
+}
+
+func unixtime() {
+	// time zoneを最初に表示させる
+	js.Global().Call("queueMicrotask", js.FuncOf(setTimeZone))
+
+	// 一定時間おきにclockを呼び出す
+	js.Global().Call("setInterval", js.FuncOf(clock), "200")
+
+	getElementByID("in").Call("addEventListener", "input", js.FuncOf(convTime))
+}
+
+func setTimeZone(this js.Value, args []js.Value) interface{} {
+	t := time.Now()
+	zone, _ := t.Zone()
+	return setJSValue("time_zone", fmt.Sprintf("(%s)", zone))
+}
+
+func setJSValue(elemID string, value interface{}) error {
+	jsDoc := js.Global().Get("document")
+	if !jsDoc.Truthy() {
+		return errors.New("failed to get document object")
+	}
+
+	jsElement := jsDoc.Call("getElementById", elemID)
+	if !jsElement.Truthy() {
+		return fmt.Errorf("failed to getElementById: %s", elemID)
+	}
+	jsElement.Set("innerHTML", value)
+	return nil
+}
+
+func getElementByID(targetID string) js.Value {
+	return js.Global().Get("document").Call("getElementById", targetID)
+}
+
+func clock(this js.Value, args []js.Value) interface{} {
+	nowStr, nowUnix := getNow(time.Now())
+
+	getElementByID("clock").Set("textContent", nowStr)
+	getElementByID("clock_unixtime").Set("textContent", nowUnix)
+	return nil
+}
+
+func convTime(this js.Value, args []js.Value) interface{} {
+	in := getElementByID("in").Get("value").String()
+	date, err := unixtimeToDate(in)
+	if err != nil {
+		getElementByID("out").Set("value", js.ValueOf("不正な時刻です"))
+		return nil
+	}
+	getElementByID("out").Set("value", js.ValueOf(date))
+	return nil
+}
+
+func getNow(now time.Time) (string, string) {
+	s := now.Format("2006-01-02 15:04:05")
+	unix := now.Unix()
+	return s, fmt.Sprintf("%d", unix)
+}
+
+func unixtimeToDate(s string) (string, error) {
+	unixtime, err := strconv.Atoi(s)
+	if err != nil {
+		return "", err
+	}
+	date := time.Unix(int64(unixtime), 0)
+	layout := "2006-01-02 15:04:05" // Goの時刻フォーマットではこれで時分秒まで取れる
+	return date.Format(layout), nil
+}
 
 ```
-const go = new Go();
-WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject).then((result) => {
-	go.run(result.instance);
-});
+
+unixtime.html
+
+```html
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>unixtime</title>
+		<link rel="shortcut icon" href="#" />
+		<script src="wasm_exec.js"></script>
+		<script>
+			const go = new Go();
+			WebAssembly.instantiateStreaming(
+				fetch("unixtime.wasm"),
+				go.importObject
+			).then((result) => {
+				go.run(result.instance);
+			});
+		</script>
+	</head>
+	<body>
+		<h1>UnixTimeを日付に変換するツール</h1>
+		<table border="1" align="center" width="600" height="100">
+			<tr align="center">
+				<td>
+					現在時刻<br />
+					<div id="time_zone">time_zone</div>
+				</td>
+				<td><div id="clock"></div></td>
+				<td><div id="clock_unixtime"></div></td>
+			</tr>
+		</table>
+
+		<hr />
+		<table border="1" align="center" width="300" height="200">
+			<tr align="center">
+				<td valign="middle">変換対象の時刻</td>
+				<td><input type="text" id="in" /></td>
+			</tr>
+			<tr align="center">
+				<td valign="middle">変換後の時刻</td>
+				<td>
+					<input type="text" id="out" />
+					<button onclick="document.getElementById('out').value = ''">
+						Clear
+					</button>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
+```
+
+## ツールの概要
+
+このツールでは大きく分けて 3 つの機能を作りました
+
+1. リアルタイムで現在時刻を表示し続ける機能
+2. テキスト欄に入力された Unixtime を日付時分秒に変換する機能
+3. タイムゾーンの表示
+
+順番に見ていきます
+
+### 説明 1. リアルタイムで現在時刻を表示し続ける機能
+
+Go では`clock`関数がこの機能を担当します
+
+- まず`getNow(time.Now())`で現在時刻を取得して、それをもとに日付と時分秒の`nowStr`と Unixtime の`nowUnix`を作成します
+- これらをそれぞれ、`getElementByID`で取得した HTML のタグ、`clock`と`clock_unixtime`に設定しています
+- ポイントは、この`clock`関数を、[setInterval](https://developer.mozilla.org/ja/docs/Web/API/setInterval)を使って 200 ミリ秒ごとに実行されるようにしていることです
+  - `js.Global().Call("setInterval", js.FuncOf(clock), "200")`
+- これにより、Web ツールの表示中、200 ミリ秒ごとに現在時刻が更新されるようになります
+
+HTML 側は以下が対応します
+
+```html
+<table border="1" align="center" width="600" height="100">
+	<tr align="center">
+		<td>現在時刻</td>
+		<td><div id="clock"></div></td>
+		<td><div id="clock_unixtime"></div></td>
+	</tr>
+</table>
+```
+
+### 説明 2. テキスト欄に入力された Unixtime を日付時分秒に変換する機能
+
+Go では、`convTime`関数がこの機能を担当します
+
+- この関数では、HTML の`in`テキスト欄に入力された文字を`unixtimeToDate`関数で変換し、変換後の文字列を HTML の`out`テキスト欄に設定します
+- この時、Unixtime として間違ったものを`in`に入力すると、`out`に`不正な時刻です`と出すようにしました
+- ポイントは、[addEventListener](https://developer.mozilla.org/ja/docs/Web/API/EventTarget/addEventListener)を使って、`in`テキスト欄に入力があったら（`input`があったら）`convTime`が実行されるようにしたことです
+- これにより、`in`に入力したのと同時に`out`に変換後の値が表示されるようになります
+
+HTML 側は以下のコードが対応します
+
+```html
+<table border="1" align="center" width="300" height="200">
+	<tr align="center">
+		<td valign="middle">変換対象の時刻</td>
+		<td><input type="text" id="in" /></td>
+	</tr>
+	<tr align="center">
+		<td valign="middle">変換後の時刻</td>
+		<td>
+			<input type="text" id="out" />
+			<button onclick="document.getElementById('out').value = ''">Clear</button>
+		</td>
+	</tr>
+</table>
+```
+
+- テキスト欄`out`の文字をクリアするボタンをつけたくなったのですが、これは次のように直下に書いたほうが(Go 側で実装して呼び出すよりも)簡単なのでこうしました
+- `<button onclick="document.getElementById('out').value = ''">Clear</button>`
+
+### 説明 3. タイムゾーンの表示
+
+- `現在時刻`の下に、タイムゾーンを表示させました。
+- Go の time パッケージの`Zone`メソッドを使って取得したものを HTML の`time_zone`タグに出しています
+- ここでは、「計算機３」の時に作った`setJSValue`関数を転用しました
+- unixtime 全体に言えますが、ここではコードのわかりやすさを優先して、「計算機３」で用いたようなエラーハンドリングはここではしていません
+- ここで、ページの読み込み時に`queueMicrotask`を使用しました
+  - この`queueMicrotask`を使った経緯は長くなるので詳しくは後に説明を書きましたが、ここで簡単に説明すると、実行したい処理を`キュー`につめて後で実行されるようにしています
+
+```
+js.Global().Call("queueMicrotask", js.FuncOf(setTimeZone))
+```
+
+- やっていることは上の`setInterval`とそっくりで、`setInterval`が定期的に実行されるのに対して、こちらは単発での実行となります
+
+## 動作確認
+
+このプログラムのビルドと実行方法は以下の通りです
+
+```
+[~/go/src/github.com/ludwig125/githubpages/docs/unixtime] $GOOS=js GOARCH=wasm go build -o unixtime.wasm
+```
+
+unixtime.wasm を出力したバイナリファイル名としました
+
+サーバを実行します
+
+```
+goexec 'http.ListenAndServe(`:8080`, http.FileServer(http.Dir(`.`)))'
+```
+
+Web ページを最初に見たときはこんな感じです
+
+現在時刻の部分は 200 ミリ秒ごとにリアルタイムで現在時刻の日付時分秒と Unixtime を表示し続けます
+
+- 「現在時刻」の下に`UTC+9`とタイムゾーンが表示されることも確認できます。
+
+![image](https://user-images.githubusercontent.com/18366858/153731707-6892e7b6-fb53-4e58-9d78-62ff320a3d2d.png)
+
+「変換対象の時刻」のテキスト欄に Unixtime を入力すると、「変換後の時刻」に変換後の日付時分秒が出力されます
+
+![image](https://user-images.githubusercontent.com/18366858/153731624-f619a432-8d15-40ee-bfaf-705b105a640d.png)
+
+日付に変換できない文字を入れると、エラー文が表示されることも確認できます
+
+![image](https://user-images.githubusercontent.com/18366858/153731636-8cab15f1-7775-40a8-973a-abed8e54fd28.png)
+
+- `Clear`ボタンを押すとこの文字は消えます
+
+![image](https://user-images.githubusercontent.com/18366858/153731642-a3f729a7-2e63-4978-a23b-3165c78af492.png)
+
+# WebAssembly.instantiateStreaming()が Promise であるということと、queueMicrotask を使った理由について
+
+`queueMicrotask`について上では簡単に説明しただけだったのですが、
+ここは個人的にものすごくはまった個所なので少し詳しく説明します。
+
+これは、私が Javascript 未経験だったことも大きいので、詳しい方は読み飛ばしていい箇所です。
+
+#### WebAssembly.instantiateStreaming()は Promise
+
+まず、この記事で何回も書いてきた WASM ファイルのロード部分をあらためて書きます。
+
+```html
+        <script src="wasm_exec.js"></script>
+		<script>
+			const go = new Go();
+			WebAssembly.instantiateStreaming(
+				fetch("XXX.wasm"),
+				go.importObject
+			).then((result) => {
+				go.run(result.instance);
+			});
+```
+
+ここで使っている`WebAssembly.instantiateStreaming`ですが、
+
+https://developer.mozilla.org/ja/docs/Web/JavaScript/Reference/Global_Objects/WebAssembly/instantiateStreaming
+
+> 返値
+> Promise で、次の 2 つのフィールドを持つ ResultObject で解決します。
+
+公式ドキュメントのこちらの記載のとおり、
+`WebAssembly.instantiateStreaming`は Promise、つまり非同期で実行されます。
+
+Promise 処理が成功したら`then`のあとの部分が実行されます。
+
+Promise については以下の記事などが詳しいですが、
+
+- https://developer.mozilla.org/ja/docs/Web/JavaScript/Guide/Using_promises
+- https://qiita.com/cheez921/items/41b744e4e002b966391a
+
+また、`go.importObject`や`go.run`ですが、これは`wasm_exec.js`に定義されたもので、Go ファイルに書いた関数を読み込む部分と実行する部分となります。
+
+- https://github.com/golang/go/blob/master/misc/wasm/wasm_exec.js
+
+つまり、`WebAssembly.instantiateStreaming`部分でやっていることをあらためて説明すると、
+
+1. `WebAssembly.instantiateStreaming`で WASM ファイルをフェッチして Go 関数を Import する処理を Promise で実行
+2. Promise が成功したら then 内の Go の関数が実行
+
+となります。
+
+ここまで当然のことを書いているようですが、
+ここで重要なのは、Go に書いた任意の関数を実行しようとしても、
+`then`内に定義しないと「**まだその関数が認識されない可能性がある**」ということです。
+
+以下問題となる例を書きます。
+
+## ページ読み込み時に Go の 関数が実行できない問題
+
+上の Unixtime ツールで作成した`setTimeZone`関数は、Web ページ読み込み時にページが実行される地域のタイムゾーン(以下の `UTC+9` 部分)を Web ページに設定するためにつくりました。
+
+![image](https://user-images.githubusercontent.com/18366858/153731751-e26e2dda-fb70-4aa4-99f4-3cdb79b2095e.png)
+
+一般的には、Web ページ読み込み時に Javascript の関数を即座に実行する方法として、`onload`や、`DOMContentLoaded`を使った方法が多く見つかります。
+
+最初、`setTimeZone`関数をこの方法で実行させようとしてうまくいかずはまりました。
+
+### うまくいかない例
+
+`setTimeZone`という Go の関数を Javascript 側で実行させるために、前述までのイベント処理と同じく、
+Go 側で以下のように`setTimeZone`を Javascript の関数`setTimeZoneFunc`として登録します。
+
+```go
+js.Global().Set("setTimeZoneFunc", js.FuncOf(setTimeZone))
+```
+
+- ここで`setTimeZone`に`setTimeZoneFunc`という名前をつけているのは、単にどちらを指しているのか分かりやすくするためです
+
+この関数を Web ページの読み込み時に実行させるために、
+HTML のヘッダー部分に以下のように`window.onload`や、`document.addEventListener("DOMContentLoaded", 関数)`を書いて実行させると、ブラウザのコンソールは次のようになります。
+
+```html
+<script>
+	const go = new Go();
+	WebAssembly.instantiateStreaming(
+		fetch("unixtime.wasm"),
+		go.importObject
+	).then((result) => {
+		go.run(result.instance);
+	});
+
+	window.onload = function () {
+		console.log("test1");
+	};
+	document.addEventListener("DOMContentLoaded", function () {
+		console.log("test2");
+	});
+	setTimeZoneFunc();
+</script>
+```
+
+![image](https://user-images.githubusercontent.com/18366858/153741319-44f3e039-8d4b-433a-97d1-83eeabdc87cc.png)
+
+`console.log`に書いた文字は表示されるのに、Go 側で定義した`setTimeZoneFunc`は
+
+```
+Uncaught ReferenceError: setTimeZoneFunc is not defined
+```
+
+と、関数が存在しないというエラーが出てしまいました。
+(`time_zone`の div タグは置き換わらずにそのままです)
+
+この理由は、上で書いた通り`WebAssembly.instantiateStreaming`が Promise で非同期の呼び出しとなっていて、
+`setTimeZoneFunc`を実行されたタイミングではまだロードが終わっておらずこの関数が認識されないためです。
+
+#### 【脱線】`test1`と`test2`の実行順序について
+
+ちなみに上の例で、`test1`よりも`test2`の方を後に書いているのに、ブラウザで順序が入れ変わっている理由ですが、
+onload がページや画像などのリソースを読み込んでから処理を実行されるのに対し、DOMContentLoaded は HTML の読み込みと解析が完了したとき、スタイルシート、画像などの読み込みが完了するのを待たずに実行するためです。
+
+以下のページが詳しいです。
+
+- https://developer.mozilla.org/ja/docs/Web/API/Window/DOMContentLoaded_event
+
+#### 【補足】ボタンのクリックなどのイベント処理で関数がうまく実行できた理由
+
+上のように、Javascript でページ読み込み時に Go の関数の呼び出しに失敗して`ReferenceError`が出ましたが、
+それまでに紹介したボタンのクリックやテキスト欄への入力では、Go の関数が呼び出せました。
+
+この理由は単純で、ボタンのクリックなどを実行する頃には、Go の関数のロードが終わっていて呼び出せる状態になったからです。
+
+実際、上で `Uncaught ReferenceError: setTimeZoneFunc is not defined`と出た直後に、
+コンソールに`setTimeZoneFunc()`と入力すると、この時点ではもうロードが終わっていて、正しく実行されます。
+
+`time_zone`部分が`UTC+9`に変わりました。
+
+![image](https://user-images.githubusercontent.com/18366858/153741311-ec1fe73e-fd38-462b-8463-e1b682be97b2.png)
+
+同様の理由で、Javascript で意図的に Sleep をさせたあとに Go の関数を呼び出しても成功します。
+
+以下では、Promise で`setTimeout`をすることで、3 秒待ってから`setTimeZoneFunc`を呼び出すコードを書きました。
+３秒も待てばロードが終わるので、呼び出しに失敗することがありません。
+ただし、これは厳密に `WebAssembly.instantiateStreaming`の完了を待っているわけではないので良いコードとは言えません。
+
+```js
+		<script>
+			const go = new Go();
+			WebAssembly.instantiateStreaming(
+				fetch("unixtime.wasm"),
+				go.importObject
+			).then((result) => {
+				go.run(result.instance);
+			});
+
+			async function waitGoLoad() {
+				console.log("wait 3 seconds...");
+				await new Promise((s) => setTimeout(s, 3000));
+				setTimeZoneFunc();
+			}
+			waitGoLoad();
+```
+
+## ページ読み込み時に Go の関数を実行させる方法 その１
+
+もっとも単純な解決方法は、
+`WebAssembly.instantiateStreaming`の Promise が成功した後、つまり`then`のなかの`go.run(result.instance);`のあとに`setTimeZoneFunc`を設定することです。
+
+こうすれば確実に Go 関数のロードが完了しているので、問題なく呼び出すことができます。
+
+```html
+<head>
+	略
+	<script src="wasm_exec.js"></script>
+	<script>
+		const go = new Go();
+		WebAssembly.instantiateStreaming(
+			fetch("unixtime.wasm"),
+			go.importObject
+		).then((result) => {
+			go.run(result.instance);
+
+			setTimeZoneFunc();
+		});
+	</script>
+</head>
+```
+
+- https://stackoverflow.com/questions/56398142/is-it-possible-to-explicitly-call-an-exported-go-webassembly-function-from-js
+
+上の記事のように、`go.run(result.instance);`後に Web ページ読み込み時に必要な処理を書いていく方法は他にもいくつか見つけたのですが、今回は次の方法を採用しました。
+
+## ページ読み込み時に Go の関数を実行させる方法 その２
+
+今回の用途では、上の方法でも良かったのですが、
+
+もしこの方法で他の処理も書いていくと<head>の<script>部分がどんどん肥大化していくことになります。
+個人的にはこの部分はシンプルにしたい思いがありました。
+
+また、Unixtime ツールの機能のうち、
+「1. リアルタイムで現在時刻を表示し続ける機能」が Go の`js.Global().Call("setInterval", js.FuncOf(clock), "200")`で完結しているのに、「3. タイムゾーンの表示」を HTML 側でも呼び出さないといけないのがどうにも気に入りませんでした。
+
+そこで、`queueMicrotask`を使う方法にしました。
+
+`queueMicrotask`の仕様は以下が詳しいです
+
+- https://developer.mozilla.org/ja/docs/Web/API/HTML_DOM_API/Microtask_guide
+- https://developer.mozilla.org/en-US/docs/Web/API/queueMicrotask
+
+また、そもそも Macrotasks と Microtasks について知らなかったので以下の記事が大変参考になりました。
+
+- https://hidekazu-blog.com/javascript-macrotasks-microtasks/
+- https://ja.javascript.info/event-loop#ref-473
+- https://christina04.hatenablog.com/entry/2017/03/13/190000
+- https://tech.wwwave.jp/entry/javascript-async-execution
+
+詳しい説明は上の記事に譲るとして、ここでは結論として、`queueMicrotask`関数に`setTimeZone`を登録しておくことで、Go の実行時に即時に`setTimeZone`を実行することができるようになります。
+
+また、蛇足ですが、上で紹介した
+`js.Global().Call("setInterval", js.FuncOf(clock), "200")`は、200 ミリ秒ごとに`clock`を呼び出しているので、Web ページ表示後最初の 200 ミリ秒間、一瞬だけ時刻の部分が空になる瞬間があります。
+
+これを防ぐ方法として、`clock`に対しても以下のように`queueMicrotask`を使うことで、
+Web ページ読み込み時に最初にすぐに`clock`を実行し、そのあと 200 ミリ秒毎に実行されることで、一瞬空になる瞬間をなくすことができます。
+
+```
+js.Global().Call("queueMicrotask", js.FuncOf(clock))
+js.Global().Call("setInterval", js.FuncOf(clock), "200")
+```
+
+今回、WASM でやりたいことを実現するのにこのような方法を用いましたが、実をいうとこれが最善手なのか分かっていません。
+私が Javascript や WASM の賢い書き方に詳しくないだけの可能性もありますが、
+とりあえず納得いくものが得られたのでこれで完成とします。
+
+# WASM の
+
+前述の「計算機３」のコードを`docs/calc3`に配置して、上の Unixtime 変換ツールを
+
+```html
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<link rel="shortcut icon" href="#" />
+	</head>
+	<body>
+		<ul>
+			<li><a href="./calc3/calc3.html">Calculator</a></li>
+			<li><a href="./unixtime/unixtime.html">Unixtime変換ツール</a></li>
+		</ul>
+	</body>
+</html>
 ```
 
 # 参考
 
-https://www.aaron-powell.com/posts/2019-02-05-golang-wasm-2-writing-go/
-
-js
-https://hmaster.net/table4.html
-http://mh.rgr.jp/memo/mh0025.htm
-
-wasm clock
-https://github.com/Yaoir/ClockExample-Go-WebAssembly
-
-click event
+https://www.aaron-powell.com/posts/2019-02-05-golang-wasm-2-writing-go/ js
+https://hmaster.net/table4.html http://mh.rgr.jp/memo/mh0025.htm wasm clock
+https://github.com/Yaoir/ClockExample-Go-WebAssembly リアルタイム時刻
 https://ja.javascript.info/events-change-input
-https://www.w3schools.com/howto/howto_html_clear_input.asp
-
-分かりやすい
+https://www.w3schools.com/howto/howto_html_clear_input.asp ← わかりやすかったです
 https://dev.bitolog.com/go-in-the-browser-using-webassembly/
-
 https://golangbot.com/go-webassembly-dom-access/
-
 https://github.com/golangbot/webassembly/blob/tutorial2/cmd/wasm/main.go
