@@ -20,6 +20,7 @@ func unixtime() {
 
 	// time zoneを最初に表示させる
 	js.Global().Call("queueMicrotask", js.FuncOf(setTimeZone))
+	js.FuncOf(setTimeZone).Release()
 
 	// 一定時間おきにclockを呼び出す
 	js.Global().Call("setInterval", js.FuncOf(clock), "200")
