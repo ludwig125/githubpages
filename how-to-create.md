@@ -930,8 +930,6 @@ Go で設定した`failed to convert value1 to int: strconv.Atoi: parsing "a": i
 
 以上で、エラーハンドリングまで対応できるようになりました
 
-「計算機１，２，３」それぞれは別のブランチに置きましたが、この「計算機３」のコードは main ブランチ上の`docs/calc3`に置きました
-
 # Unixtime 変換ツール
 
 上の加算減算しかできない計算機より少しは使い道のありそうな、Unixtime を JST の日付に変換するツールを作ってみました
@@ -960,6 +958,8 @@ func main() {
 func unixtime() {
 	// time zoneを最初に表示させる
 	js.Global().Call("queueMicrotask", js.FuncOf(setTimeZone))
+	// 二度と使わない関数はメモリを解放する
+	js.FuncOf(setTimeZone).Release()
 
 	// 一定時間おきにclockを呼び出す
 	js.Global().Call("setInterval", js.FuncOf(clock), "200")
@@ -1028,7 +1028,7 @@ func unixtimeToDate(s string) (string, error) {
 
 ```
 
-unixtime.html
+index.html
 
 ```html
 <html>
@@ -1153,9 +1153,17 @@ HTML 側は以下のコードが対応します
 
 ```
 js.Global().Call("queueMicrotask", js.FuncOf(setTimeZone))
+js.FuncOf(setTimeZone).Release()
 ```
 
 - やっていることは上の`setInterval`とそっくりで、`setInterval`が定期的に実行されるのに対して、こちらは単発での実行となります
+
+- `setTimeZone`のように、一度呼びだされたら二度と使わない関数は、`Release`メソッドを使ってメモリを解放しておくとメモリの節約になってよいので`js.FuncOf(setTimeZone).Release()`を後ろに書いておきます
+
+参考
+
+- https://pkg.go.dev/syscall/js#Func.Release
+- https://zenn.dev/nobonobo/books/85e605893d44ebe7dd3f/viewer/b5ac64d9135e123e367a
 
 ## 動作確認
 
@@ -1420,6 +1428,26 @@ Web ページ読み込み時に最初にすぐに`clock`を実行し、そのあ
 js.Global().Call("queueMicrotask", js.FuncOf(clock))
 js.Global().Call("setInterval", js.FuncOf(clock), "200")
 ```
+
+繰り返しとなりますが、私は Javascript 初心者なので、`queueMicrotask`を使った方法が最適なのかどうかまでは確認していません。
+
+# TinyGo への置き換え
+
+上で作った Unixtime ツールを TinyGo に置き換えてみます。
+
+```
+$tinygo build -o unixtime.wasm -target wasm unixtime.go
+```
+
+```
+cp $(tinygo env TINYGOROOT)/targets/wasm_exec.js .
+```
+
+これだけで TinyGo として実行できますが、
+
+## export について
+
+# -------------------------------
 
 今回、WASM でやりたいことを実現するのにこのような方法を用いましたが、実をいうとこれが最善手なのか分かっていません。
 私が Javascript や WASM の賢い書き方に詳しくないだけの可能性もありますが、

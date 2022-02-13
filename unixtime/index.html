@@ -1,0 +1,47 @@
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>unixtime</title>
+		<link rel="shortcut icon" href="#" />
+		<script src="wasm_exec.js"></script>
+		<script>
+			const go = new Go();
+			WebAssembly.instantiateStreaming(
+				fetch("unixtime.wasm"),
+				go.importObject
+			).then((result) => {
+				go.run(result.instance);
+			});
+		</script>
+	</head>
+	<body>
+		<h1>UnixTimeを日付に変換するツール</h1>
+		<table border="1" align="center" width="600" height="100">
+			<tr align="center">
+				<td>
+					現在時刻<br />
+					<div id="time_zone">time_zone</div>
+				</td>
+				<td><div id="clock"></div></td>
+				<td><div id="clock_unixtime"></div></td>
+			</tr>
+		</table>
+
+		<hr />
+		<table border="1" align="center" width="300" height="200">
+			<tr align="center">
+				<td valign="middle">変換対象の時刻</td>
+				<td><input type="text" id="in" /></td>
+			</tr>
+			<tr align="center">
+				<td valign="middle">変換後の時刻</td>
+				<td>
+					<input type="text" id="out" />
+					<button onclick="document.getElementById('out').value = ''">
+						Clear
+					</button>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>

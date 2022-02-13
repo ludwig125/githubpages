@@ -17,7 +17,6 @@ func main() {
 func unixtime() {
 	// time zoneを最初に表示させる
 	js.Global().Call("queueMicrotask", js.FuncOf(setTimeZone))
-	// 二度と使わない関数はメモリを解放する
 	js.FuncOf(setTimeZone).Release()
 
 	// 一定時間おきにclockを呼び出す
