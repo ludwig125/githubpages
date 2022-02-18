@@ -1390,13 +1390,13 @@ onload がページや画像などのリソースを読み込んでから処理�
 
 - https://stackoverflow.com/questions/56398142/is-it-possible-to-explicitly-call-an-exported-go-webassembly-function-from-js
 
-上の記事のように、`go.run(result.instance);`後に Web ページ読み込み時に必要な処理を書いていく方法は他にもいくつか見つけたのですが、今回は次の方法を採用しました。
+上の記事のように、`go.run(result.instance);`後に Web ページ読み込み時に必要な処理を書いていく方法は他にもいくつか見つけたのですが、今回は次の`queueMicrotask`を使う方法を採用しました。
 
 ## ページ読み込み時に Go の関数を実行させる方法 その２
 
-今回の用途では、上の方法でも良かったのですが、
+今回の用途では上の方法でも良かったのですが、
 
-もしこの方法で他の処理も書いていくと<head>の<script>部分がどんどん肥大化していくことになります。
+もしこの方法で他の処理も書いていくと`<head>`の`<script>`部分がどんどん肥大化していくことになります。
 個人的にはこの部分はシンプルにしたい思いがありました。
 
 また、Unixtime ツールの機能のうち、
@@ -1429,9 +1429,11 @@ js.Global().Call("queueMicrotask", js.FuncOf(clock))
 js.Global().Call("setInterval", js.FuncOf(clock), "200")
 ```
 
-繰り返しとなりますが、私は Javascript 初心者なので、`queueMicrotask`を使った方法が最適なのかどうかまでは確認していません。
+繰り返しですが、私は Javascript 初心者なので、この`queueMicrotask`を使った方法が最適なのかどうかまでは確認していません。
 
 # TinyGo への置き換え
+
+## TinyGo の実行方法
 
 上で作った Unixtime ツールを TinyGo に置き換えてみます。
 
@@ -1443,9 +1445,160 @@ $tinygo build -o unixtime.wasm -target wasm unixtime.go
 cp $(tinygo env TINYGOROOT)/targets/wasm_exec.js .
 ```
 
-これだけで TinyGo として実行できますが、
+これだけで TinyGo として WASM で実行できます。
 
-## export について
+```
+[~/go/src/github.com/ludwig125/githubpages/unixtime_tinygo] $goexec 'http.ListenAndServe(`:8080`, http.FileServer(http.Dir(`.`)))'
+
+```
+
+ただ、http://localhost:8080/ を見ると、一見問題ないように見えますが、
+「変換対象の時刻」に Unixtime を入れると Console にエラーがでます。
+（処理自体は問題なく行われます）
+
+![image](https://user-images.githubusercontent.com/18366858/154571515-af59001b-8c84-4ef6-9083-0ddf4984e017.png)
+
+エラー：`syscall/js.finalizeRef not implemented`
+
+このエラー原因について詳しくは以下を見ると良いのですが、
+
+- https://github.com/tinygo-org/tinygo/issues/1140#issuecomment-674425070
+
+TinyGo のバグなので、TinyGo の`wasm_exec.js`が修正されるまでは、以下のように`index.html`側に書いておくとこのエラーがなくなります。
+
+```js
+const go = new Go();
+
+// TinyGoのバグを無視するため
+// https://github.com/tinygo-org/tinygo/issues1140#issuecomment-671261465
+go.importObject.env["syscall/js.finalizeRef"] = ()=> {};
+
+WebAssembly.instantiateStreaming(
+	fetch("unixtime.wasm"),
+	go.importObject
+).then((result) => {
+```
+
+参考：
+
+- https://blog.suborbital.dev/foundations-wasm-in-golang-is-fantastic
+
+これでエラー文が出なくなります。
+
+## TinyGo のバイナリサイズ
+
+２つのバイナリサイズを比べてみます
+
+```
+[~/go/src/github.com/ludwig125/githubpages/unixtime] $GOOS=js GOARCH=wasm go build -o unixtime.wasm
+[~/go/src/github.com/ludwig125/githubpages/unixtime] $ls -l
+合計 2096
+-rw-r--r-- 1 ludwig125 ludwig125    1247  2月 14 06:58 index.html
+-rw-r--r-- 1 ludwig125 ludwig125    2103  2月 18 06:08 unixtime.go
+-rwxr-xr-x 1 ludwig125 ludwig125 2113909  2月 18 06:08 unixtime.wasm*
+-rw-r--r-- 1 ludwig125 ludwig125   18346  2月 14 06:10 wasm_exec.js
+```
+
+```
+[~/go/src/github.com/ludwig125/githubpages/unixtime_tinygo] $tinygo build -o unixtime.wasm -target wasm unixtime.go
+[~/go/src/github.com/ludwig125/githubpages/unixtime_tinygo] $ls -l
+合計 464
+-rw-r--r-- 1 ludwig125 ludwig125   1437  2月 17 06:39 index.html
+-rw-r--r-- 1 ludwig125 ludwig125   2103  2月 18 06:08 unixtime.go
+-rwxr-xr-x 1 ludwig125 ludwig125 447857  2月 18 06:09 unixtime.wasm*
+-rw-r--r-- 1 ludwig125 ludwig125  15929  2月 14 06:30 wasm_exec.js
+```
+
+私の環境では、ほぼ同じコードでも、TinyGo は Go と比べて`unixtime.wasm*`のバイナリサイズが 1/4 以下になっていました。
+
+## TinyGo の速度
+
+バイナリサイズが小さいということは、当然 WASM として Fetch したり Load するのも速くなるはずです。
+
+通常の Go と TinyGo の Load までの時間を計測するために、それぞれの`index.html`に以下のコードを追加してみます。
+
+```js
+<script>
+	var start = performance.now(); // 追加部分
+
+	const go = new Go();
+
+	WebAssembly.instantiateStreaming(
+		fetch("unixtime.wasm"),
+		go.importObject
+	).then((result) => {
+		go.run(result.instance);
+
+		var end = performance.now(); // 追加部分
+		console.log("latency of load and run wasm %f ms", end - start); // 追加部分
+	});
+</script>
+```
+
+https://developer.mozilla.org/ja/docs/Web/API/Performance/now
+
+こちらのパフォーマンス計測用の関数を使います
+
+- `WebAssembly.instantiateStreaming`の前を`start`
+- `go.run(result.instance);`の後を`end`
+
+としてこの差分を測ってみます。
+
+ついでに、Go の方の関数にも Latency を計測するために以下の部分を追記します。
+
+```go
+func convTime(this js.Value, args []js.Value) interface{} {
+	start := time.Now()
+	defer func() {
+		fmt.Println("convTime latency:", time.Since(start))
+	}()
+
+	略
+```
+
+これで、Go と TinyGoUnixtime の Web ページをそれぞれ順番に見てみます。
+
+通常の Go
+![image](https://user-images.githubusercontent.com/18366858/154574625-c6809e7d-f780-47c1-8730-06cec93b11ba.png)
+
+TinyGo
+![image](https://user-images.githubusercontent.com/18366858/154574838-4e8551ec-b3e8-4ece-86b6-42c06f8832fd.png)
+
+注意事項
+
+- Go のあとに TinyGo のページを読み込みなおすときは、Chrome のキャッシュに残っていておかしなエラーが出る場合があります。この場合はキャッシュをクリアしてページを再読み込みするために、`Ctrl+Shift+R`でページを更新するといいです
+
+WASM の Fetch から実行までの時間は
+
+- Go: 52.10000002384186 ms
+- TinyGo: 16 ms
+
+となりました。
+
+やはり、起動までの時間は TinyGo の方が短くなっています。
+今回は小さなプログラムなので、この程度の差ですが、大きなプログラムになると実行までの時間はさらに変わってくるかも知れません。
+
+一方で、`convTime`の実行速度はあまり変わりませんでした。
+これは意外でした。
+
+ひとたびバイナリとして読み込んでメモリに乗ってしまえばあとはそんなに変わらないものなのか、それとも実行している関数がそんなに違いが見られる類のものではなかったのかも知れませんが分かりません。
+
+TinyGo は Go と同じコードをそのまま使えますが、
+
+#### export について
+
+参考
+
+- https://tinygo.org/docs/guides/webassembly/
+
+unixtime
+![image](https://user-images.githubusercontent.com/18366858/154361989-b2e124be-d3cb-469b-977b-1d40b461cb9c.png)
+
+unixtime tinygo
+![image](https://user-images.githubusercontent.com/18366858/154362026-332ff9b3-5699-4b4d-a7a2-c84e1ccd880c.png)
+
+![image](https://user-images.githubusercontent.com/18366858/154361487-ee2bec5e-c2d1-4551-b27d-e8c0200c6d88.png)
+syscall/js.finalizeRef not implemented
 
 # -------------------------------
 
