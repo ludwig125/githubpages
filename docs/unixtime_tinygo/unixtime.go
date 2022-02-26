@@ -8,28 +8,13 @@ import (
 	"time"
 )
 
-func main() {
-	unixtime()
+func main() {}
 
-	<-make(chan struct{})
-}
-
-func unixtime() {
-	// time zoneを最初に表示させる
-	js.Global().Call("queueMicrotask", js.FuncOf(setTimeZone))
-	// 二度と使わない関数はメモリを解放する
-	js.FuncOf(setTimeZone).Release()
-
-	// 一定時間おきにclockを呼び出す
-	js.Global().Call("setInterval", js.FuncOf(clock), "200")
-
-	getElementByID("in").Call("addEventListener", "input", js.FuncOf(convTime))
-}
-
-func setTimeZone(this js.Value, args []js.Value) interface{} {
+//export setTimeZone
+func setTimeZone() {
 	t := time.Now()
 	zone, _ := t.Zone()
-	return setJSValue("time_zone", fmt.Sprintf("(%s)", zone))
+	setJSValue("time_zone", fmt.Sprintf("(%s)", zone))
 }
 
 func setJSValue(elemID string, value interface{}) error {
@@ -50,23 +35,23 @@ func getElementByID(targetID string) js.Value {
 	return js.Global().Get("document").Call("getElementById", targetID)
 }
 
-func clock(this js.Value, args []js.Value) interface{} {
+//export clock
+func clock() {
 	nowStr, nowUnix := getNow(time.Now())
 
 	getElementByID("clock").Set("textContent", nowStr)
 	getElementByID("clock_unixtime").Set("textContent", nowUnix)
-	return nil
 }
 
-func convTime(this js.Value, args []js.Value) interface{} {
+//export convTime
+func convTime() {
 	in := getElementByID("in").Get("value").String()
 	date, err := unixtimeToDate(in)
 	if err != nil {
 		getElementByID("out").Set("value", js.ValueOf("不正な時刻です"))
-		return nil
+		return
 	}
 	getElementByID("out").Set("value", js.ValueOf(date))
-	return nil
 }
 
 func getNow(now time.Time) (string, string) {

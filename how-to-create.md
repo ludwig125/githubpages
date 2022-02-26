@@ -194,6 +194,10 @@ $ cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" .
 https://github.com/golang/go/wiki/WebAssembly#getting-started
 には、ブラウザが`WebAssembly.instantiateStreaming`に対応していない場合は `polyfill`を使うようにと書かれていますが、私の環境では普通に実行できたのでここではこのまま使用しました。
 
+polyfill
+
+- https://github.com/golang/go/blob/b2fcfc1a50fbd46556f7075f7f1fbf600b5c9e5d/misc/wasm/wasm_exec.html#L17-L22
+
 この辺の WASM を使う場合の説明は以下が詳しいです
 
 - https://developer.mozilla.org/en-US/docs/WebAssembly/Loading_and_running
@@ -1437,6 +1441,8 @@ js.Global().Call("setInterval", js.FuncOf(clock), "200")
 
 上で作った Unixtime ツールを TinyGo に置き換えてみます。
 
+以下の方法で TinyGo として Buid できます。（通常の Go に比べて若干 Build に時間がかかるような気がします）
+
 ```
 $tinygo build -o unixtime.wasm -target wasm unixtime.go
 ```
@@ -1564,7 +1570,7 @@ func convTime(this js.Value, args []js.Value) interface{} {
 TinyGo
 ![image](https://user-images.githubusercontent.com/18366858/154574838-4e8551ec-b3e8-4ece-86b6-42c06f8832fd.png)
 
-注意事項
+注意点
 
 - Go のあとに TinyGo のページを読み込みなおすときは、Chrome のキャッシュに残っていておかしなエラーが出る場合があります。この場合はキャッシュをクリアしてページを再読み込みするために、`Ctrl+Shift+R`でページを更新するといいです
 
@@ -1583,22 +1589,222 @@ WASM の Fetch から実行までの時間は
 
 ひとたびバイナリとして読み込んでメモリに乗ってしまえばあとはそんなに変わらないものなのか、それとも実行している関数がそんなに違いが見られる類のものではなかったのかも知れませんが分かりません。
 
-TinyGo は Go と同じコードをそのまま使えますが、
+#### export を利用したTinyGoコードの書き換え
 
-#### export について
+TinyGo は Go と同じコードをそのまま使えますが、TinyGoならではの機能を使うとコードをよりシンプルに（？）書き換えることができます。
 
-参考
+https://tinygo.org/docs/guides/webassembly/
 
-- https://tinygo.org/docs/guides/webassembly/
+> If you have used explicit exports, you can call them by invoking them under the wasm.exports namespace. See the export directory in the examples for an example of this.
 
-unixtime
-![image](https://user-images.githubusercontent.com/18366858/154361989-b2e124be-d3cb-469b-977b-1d40b461cb9c.png)
+とあるとおり、以下のようにGoの関数に`//export 関数名`をつけるだけで、なんとJavascript側から呼びだすことができます。
 
-unixtime tinygo
-![image](https://user-images.githubusercontent.com/18366858/154362026-332ff9b3-5699-4b4d-a7a2-c84e1ccd880c.png)
 
-![image](https://user-images.githubusercontent.com/18366858/154361487-ee2bec5e-c2d1-4551-b27d-e8c0200c6d88.png)
-syscall/js.finalizeRef not implemented
+```go
+//export multiply
+func multiply(x, y int) int {
+    return x * y;
+}
+```
+
+
+**ここで、`//export`の`//`と`export`の間に半角スペースを入れると認識されないので、くっつけて書くことを注意してください**
+
+```js
+// Calling the multiply function:
+console.log('multiplied two numbers:', wasm.exports.multiply(5, 3));
+```
+
+この`multiply`関数はこれまでのWASMのGoの書き方の
+`multiply(this js.Value, args []js.Value) interface{}` のような形にしなくて済むというのが最大の利点です。
+
+この機能を使うと、Unixtimeツールの例えば`setTimeZone`関数は以下のようにシンプルになり、
+
+```go
+//export setTimeZone
+func setTimeZone() {
+	t := time.Now()
+	zone, _ := t.Zone()
+	setJSValue("time_zone", fmt.Sprintf("(%s)", zone))
+}
+```
+
+index.html側では以下のように呼びだすことができます。
+
+```js
+const go = new Go();
+WebAssembly.instantiateStreaming(
+	fetch("unixtime.wasm"),
+	go.importObject
+).then((result) => {
+	go.run(result.instance);
+
+	result.instance.exports.setTimeZone();
+});
+```
+
+この方式で、`go.run(result.instance);`のあとに必要な処理をつらつら書いても良いのですが、これだと`index.html`の`<head>`の`<script>`部分が肥大するので、以下の資料を参考に`index.js`ファイルに切り出してみます。
+
+
+- https://wasmbyexample.dev/examples/hello-world/hello-world.go.en-us.html
+
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+	"syscall/js"
+	"time"
+)
+
+func main() {}
+
+//export setTimeZone
+func setTimeZone() {
+	t := time.Now()
+	zone, _ := t.Zone()
+	setJSValue("time_zone", fmt.Sprintf("(%s)", zone))
+}
+
+func setJSValue(elemID string, value interface{}) error {
+	// 元と同じ
+}
+
+func getElementByID(targetID string) js.Value {
+	// 元と同じ
+}
+
+//export clock
+func clock() {
+	nowStr, nowUnix := getNow(time.Now())
+
+	getElementByID("clock").Set("textContent", nowStr)
+	getElementByID("clock_unixtime").Set("textContent", nowUnix)
+}
+
+//export convTime
+func convTime() {
+	in := getElementByID("in").Get("value").String()
+	date, err := unixtimeToDate(in)
+	if err != nil {
+		getElementByID("out").Set("value", js.ValueOf("不正な時刻です"))
+		return
+	}
+	getElementByID("out").Set("value", js.ValueOf(date))
+}
+
+// 以降、元と同じ
+```
+
+「`//export`」を使うことでかなりシンプルになりました。
+TinyGoのexportを使えばJavascript側からGoの関数を直接呼びだすことができます。
+コールバック関数が呼び出されたときのためにGoのプログラムを永久に終わらせないようにするために、`main`関数内でチャネルを使っていましたがその必要もなくなりました。
+
+Goの関数の呼び出し側である、HTMLとJavascriptも修正します。
+
+前述の通りhead部分を見やすくするために、以下を参考に修正しました。
+
+- https://wasmbyexample.dev/examples/hello-world/hello-world.go.en-us.html
+
+まず、WASMファイルのインスタンス生成部分を別のファイルにします。
+
+instantiateWasm.js
+```js
+export const wasmBrowserInstantiate = async (wasmModuleUrl, importObject) => {
+    let response = undefined;
+
+    if (!importObject) {
+        importObject = {
+            env: {
+                abort: () => console.log("Abort!")
+            }
+        };
+    }
+
+    response = await WebAssembly.instantiateStreaming(
+        fetch(wasmModuleUrl),
+        importObject
+    );
+
+    return response;
+};
+
+
+```
+
+- [公式ドキュメント](https://github.com/golang/go/wiki/WebAssembly#getting-started)の[polyfill](https://github.com/golang/go/blob/b2fcfc1a50fbd46556f7075f7f1fbf600b5c9e5d/misc/wasm/wasm_exec.html#L17-L22)を使う場合は以下のようになります
+- ここでは省略しました。
+
+```js
+// polyfillを定義した場合
+    if (WebAssembly.instantiateStreaming) {
+        response = await WebAssembly.instantiateStreaming(
+            fetch(wasmModuleUrl),
+            importObject
+        );
+    } else {
+        const fetchAndInstantiateTask = async () => {
+            const wasmArrayBuffer = await fetch(wasmModuleUrl).then(response =>
+                response.arrayBuffer()
+            );
+            return WebAssembly.instantiate(wasmArrayBuffer, importObject);
+        };
+        response = await fetchAndInstantiateTask();
+    }
+```
+
+一方、呼び出し側の`index.html`から、WASMの呼び出し部分を切り出して別のファイルにすると以下のようになります。
+
+
+index.js
+```js
+import {
+    wasmBrowserInstantiate
+} from "./instantiateWasm.js";
+
+const go = new Go(); // Defined in wasm_exec.js. Don't forget to add this in your index.html.
+
+// TinyGoのバグを無視するため
+// https://github.com/tinygo-org/tinygo/issues/1140#issuecomment-671261465
+go.importObject.env["syscall/js.finalizeRef"] = () => {};
+
+const runWasm = async () => {
+    // Get the importObject from the go instance.
+    const importObject = go.importObject;
+
+    // wasm moduleのインスタンスを作成
+    const wasmModule = await wasmBrowserInstantiate("./unixtime.wasm", importObject);
+
+    go.run(wasmModule.instance);
+
+    wasmModule.instance.exports.setTimeZone();
+    setInterval(wasmModule.instance.exports.clock, 200);
+    document.getElementById("in").addEventListener("input", wasmModule.instance.exports.convTime);
+};
+runWasm();
+```
+
+- インスタンス生成部分とメインの処理部分を分離して分かりやすくなりました
+- （`wasmModule.instance.exports.`部分がやや鬱陶しいですが、）Goの関数をJavascriptネイティブの関数のように扱うことができるようになったため、実行方法もJavascriptの書き方になっています
+
+
+
+最後に、この`index.js`を`index.html`から呼びだせば終わりです。
+
+```html
+<head>
+	<meta charset="utf-8" />
+	<title>unixtime</title>
+	<link rel="shortcut icon" href="#" />
+	<script src="./wasm_exec.js"></script>
+	<script type="module" src="./index.js"></script>
+</head>
+```
+
+かなり見やすくなったかと思います。
 
 # -------------------------------
 
@@ -1635,3 +1841,4 @@ https://www.w3schools.com/howto/howto_html_clear_input.asp ← わかりやす�
 https://dev.bitolog.com/go-in-the-browser-using-webassembly/
 https://golangbot.com/go-webassembly-dom-access/
 https://github.com/golangbot/webassembly/blob/tutorial2/cmd/wasm/main.go
+https://tinygo.org/docs/guides/webassembly/
