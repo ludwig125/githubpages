@@ -11,21 +11,7 @@
 		<input type="text" id="value1" />
 		<input type="text" id="value2" />
 
-		<!-- <button onClick="addOrErr('value1', 'value2');" id="addButton">Add</button> -->
-		<!-- <button onClick="calcAddExport('value1', 'value2');" id="addButton">
-			Add
-		</button> -->
-		<!-- <button onClick="addOrErr2('value1', 'value2');" id="addButton2">
-			Add2
-		</button>
-		<button onClick="addOrErr3('value1', 'value2');" id="addButton3">
-			Add3
-		</button> -->
 		<button onClick="addOrErr();" id="addButton4">Add4</button>
-		<!-- <button id="addButton4">Add4</button> -->
-		<!-- <button onClick="subtractOrErr('value1', 'value2');" id="subtractButton">
-			Subtract
-		</button> -->
 
 		<div align="left">answer:</div>
 		<div id="answer"></div>
@@ -40,13 +26,13 @@
 			}
 
 			var addOrErr = function () {
-				var result = calcAdd2();
+				var result = calcAdd();
 				checkError(result);
 			};
-			// var subtractOrErr = function (value1, value2) {
-			// 	var result = calcSubtract(value1, value2);
-			// 	checkError(result);
-			// };
+			var subtractOrErr = function (value1, value2) {
+				var result = calcSubtract(value1, value2);
+				checkError(result);
+			};
 		</script>
 	</body>
 </html>
