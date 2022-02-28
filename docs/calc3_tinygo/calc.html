@@ -3,8 +3,8 @@
 		<meta charset="utf-8" />
 		<title>wasam-calculator</title>
 		<link rel="shortcut icon" href="#" />
-		<!-- <script src="../wasm_exec.js"></script>
-	<script type="module" src="./calc.js"></script> -->
+		<script src="../wasm_exec.js"></script>
+		<script type="module" src="./calc.js"></script>
 	</head>
 
 	<body>
@@ -15,69 +15,38 @@
 		<!-- <button onClick="calcAddExport('value1', 'value2');" id="addButton">
 			Add
 		</button> -->
-		<button onClick="addOrErr2('value1', 'value2');" id="addButton2">
+		<!-- <button onClick="addOrErr2('value1', 'value2');" id="addButton2">
 			Add2
 		</button>
 		<button onClick="addOrErr3('value1', 'value2');" id="addButton3">
 			Add3
-		</button>
-		<button id="addButton4">Add4</button>
-		<button onClick="subtractOrErr('value1', 'value2');" id="subtractButton">
+		</button> -->
+		<button onClick="addOrErr();" id="addButton4">Add4</button>
+		<!-- <button id="addButton4">Add4</button> -->
+		<!-- <button onClick="subtractOrErr('value1', 'value2');" id="subtractButton">
 			Subtract
-		</button>
+		</button> -->
 
 		<div align="left">answer:</div>
 		<div id="answer"></div>
 
-		<script src="../wasm_exec.js"></script>
-		<script type="module" src="./calc.js">
-			alert("Runs in modern browsers");
-			sayHi('John');
-		</script>
+		<script>
+			function checkError(result) {
+				if (result != null && "error" in result) {
+					console.log("Go return value", result);
+					answer.innerHTML = "";
+					alert(result.error);
+				}
+			}
 
-		<script type="module">
-			import { foo, calcAddExport, addOrErr2, addOrErr3 } from "./calc.js";
-			foo("Hello World"); // Hello World
-			console.log("hoge");
-			// calcAddExport("1", "3");
-			console.log("hoge2");
-
-			// function checkError(result) {
-			// 	if (result != null && "error" in result) {
-			// 		console.log("Go return value", result);
-			// 		answer.innerHTML = "";
-			// 		alert(result.error);
-			// 	}
-			// }
-
-			// var addOrErr = function (value1, value2) {
-			// 	console.log("koko");
-			// 	var result = calcAddExport(value1, value2);
-			// 	console.log("koko", result);
-			// 	checkError(result);
-			// };
+			var addOrErr = function () {
+				var result = calcAdd2();
+				checkError(result);
+			};
 			// var subtractOrErr = function (value1, value2) {
 			// 	var result = calcSubtract(value1, value2);
 			// 	checkError(result);
 			// };
 		</script>
-
-		<!-- <script type="module">
-			import { calcAddExport } from "./calc.js";
-			calcAddExport("1", "3");
-			// import {addOrErr} from "./calc.js";
-			// addOrErr(value1, value2);
-			console.log("hoge3");
-		</script> -->
-
-		<!--
-	<script>
-		import('./calc.js').then(function (module) {
-			// console.log('module.value:', module.value);
-			module.wasmInstance.exports.calcAdd("1", "3");
-			console.log("hoge2");
-			// console.log('module.default:', module.default);
-		})
-	</script> -->
 	</body>
 </html>
