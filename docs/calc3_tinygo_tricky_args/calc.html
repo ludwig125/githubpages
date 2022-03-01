@@ -1,0 +1,38 @@
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>wasam-calculator</title>
+		<link rel="shortcut icon" href="#" />
+		<script src="../wasm_exec.js"></script>
+		<script type="module" src="./calc.js"></script>
+	</head>
+
+	<body>
+		<input type="text" id="value1" />
+		<input type="text" id="value2" />
+
+		<!-- <button onClick="addOrErr('value1', 'value2');" id="addButton">Add</button> -->
+		<!-- <button onClick="calcAddExport('value1', 'value2');" id="addButton">
+			Add
+		</button> -->
+		<!-- <button onClick="addOrErr2('value1', 'value2');" id="addButton2">
+			Add2
+		</button>
+		<button onClick="addOrErr3('value1', 'value2');" id="addButton3">
+			Add3
+		</button> -->
+		<button id="addButton4">Add4</button>
+		<button onClick="subtractOrErr('value1', 'value2');" id="subtractButton">
+			Subtract
+		</button>
+
+		<div align="left">answer:</div>
+		<div id="answer"></div>
+
+		<script src="../wasm_exec.js"></script>
+		<script type="module" src="./calc.js">
+			alert("Runs in modern browsers");
+			sayHi('John');
+		</script>
+	</body>
+</html>
