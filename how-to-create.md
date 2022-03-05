@@ -1589,16 +1589,15 @@ WASM の Fetch から実行までの時間は
 
 ひとたびバイナリとして読み込んでメモリに乗ってしまえばあとはそんなに変わらないものなのか、それとも実行している関数がそんなに違いが見られる類のものではなかったのかも知れませんが分かりません。
 
-#### export を利用したTinyGoコードの書き換え
+### export を利用した TinyGo コードの書き換え
 
-TinyGo は Go と同じコードをそのまま使えますが、TinyGoならではの機能を使うとコードをよりシンプルに（？）書き換えることができます。
+TinyGo は Go と同じコードをそのまま使えますが、TinyGo ならではの`export`の機能を使うとコードをより直接に呼びだすことができます
 
 https://tinygo.org/docs/guides/webassembly/
 
 > If you have used explicit exports, you can call them by invoking them under the wasm.exports namespace. See the export directory in the examples for an example of this.
 
-とあるとおり、以下のようにGoの関数に`//export 関数名`をつけるだけで、なんとJavascript側から呼びだすことができます。
-
+とあるとおり、以下のように Go の関数に`//export 関数名`をつけるだけで、なんと Javascript 側から呼びだすことができます。
 
 ```go
 //export multiply
@@ -1607,18 +1606,23 @@ func multiply(x, y int) int {
 }
 ```
 
+- ここで、`//export`の`//`と`export`の間に半角スペースを入れると認識されないので、くっつけて書くことを注意してください\*\*
+- ちなみに`//export`は以前は`//go:export`でしたが、2020 年に変わったので少し古い資料を見ると`//go:export`となっていることがあります
+  - https://github.com/tinygo-org/tinygo/pull/1025
 
-**ここで、`//export`の`//`と`export`の間に半角スペースを入れると認識されないので、くっつけて書くことを注意してください**
+javascript からの呼び出し方法
 
 ```js
 // Calling the multiply function:
-console.log('multiplied two numbers:', wasm.exports.multiply(5, 3));
+console.log("multiplied two numbers:", wasm.exports.multiply(5, 3));
 ```
 
-この`multiply`関数はこれまでのWASMのGoの書き方の
+この`multiply`関数はこれまでの WASM の Go の書き方の
 `multiply(this js.Value, args []js.Value) interface{}` のような形にしなくて済むというのが最大の利点です。
 
-この機能を使うと、Unixtimeツールの例えば`setTimeZone`関数は以下のようにシンプルになり、
+**`//export`を使った場合の大きな問題点もあるのですがそれは後述します**
+
+この機能を使うと、Unixtime ツールの例えば`setTimeZone`関数は以下のようにシンプルになり、
 
 ```go
 //export setTimeZone
@@ -1629,25 +1633,22 @@ func setTimeZone() {
 }
 ```
 
-index.html側では以下のように呼びだすことができます。
+index.html 側では以下のように呼びだすことができます。
 
 ```js
 const go = new Go();
-WebAssembly.instantiateStreaming(
-	fetch("unixtime.wasm"),
-	go.importObject
-).then((result) => {
-	go.run(result.instance);
+WebAssembly.instantiateStreaming(fetch("unixtime.wasm"), go.importObject).then(
+	(result) => {
+		go.run(result.instance);
 
-	result.instance.exports.setTimeZone();
-});
+		result.instance.exports.setTimeZone();
+	}
+);
 ```
 
 この方式で、`go.run(result.instance);`のあとに必要な処理をつらつら書いても良いのですが、これだと`index.html`の`<head>`の`<script>`部分が肥大するので、以下の資料を参考に`index.js`ファイルに切り出してみます。
 
-
 - https://wasmbyexample.dev/examples/hello-world/hello-world.go.en-us.html
-
 
 ```go
 package main
@@ -1700,39 +1701,38 @@ func convTime() {
 ```
 
 「`//export`」を使うことでかなりシンプルになりました。
-TinyGoのexportを使えばJavascript側からGoの関数を直接呼びだすことができます。
-コールバック関数が呼び出されたときのためにGoのプログラムを永久に終わらせないようにするために、`main`関数内でチャネルを使っていましたがその必要もなくなりました。
+TinyGo の export を使えば Javascript 側から Go の関数を直接呼びだすことができます。
+コールバック関数が呼び出されたときのために Go のプログラムを永久に終わらせないようにするために、`main`関数内でチャネルを使っていましたがその必要もなくなりました。
 
-Goの関数の呼び出し側である、HTMLとJavascriptも修正します。
+Go の関数の呼び出し側である、HTML と Javascript も修正します。
 
-前述の通りhead部分を見やすくするために、以下を参考に修正しました。
+前述の通り head 部分を見やすくするために、以下を参考に修正しました。
 
 - https://wasmbyexample.dev/examples/hello-world/hello-world.go.en-us.html
 
-まず、WASMファイルのインスタンス生成部分を別のファイルにします。
+まず、WASM ファイルのインスタンス生成部分を別のファイルにします。
 
 instantiateWasm.js
+
 ```js
 export const wasmBrowserInstantiate = async (wasmModuleUrl, importObject) => {
-    let response = undefined;
+	let response = undefined;
 
-    if (!importObject) {
-        importObject = {
-            env: {
-                abort: () => console.log("Abort!")
-            }
-        };
-    }
+	if (!importObject) {
+		importObject = {
+			env: {
+				abort: () => console.log("Abort!"),
+			},
+		};
+	}
 
-    response = await WebAssembly.instantiateStreaming(
-        fetch(wasmModuleUrl),
-        importObject
-    );
+	response = await WebAssembly.instantiateStreaming(
+		fetch(wasmModuleUrl),
+		importObject
+	);
 
-    return response;
+	return response;
 };
-
-
 ```
 
 - [公式ドキュメント](https://github.com/golang/go/wiki/WebAssembly#getting-started)の[polyfill](https://github.com/golang/go/blob/b2fcfc1a50fbd46556f7075f7f1fbf600b5c9e5d/misc/wasm/wasm_exec.html#L17-L22)を使う場合は以下のようになります
@@ -1740,30 +1740,28 @@ export const wasmBrowserInstantiate = async (wasmModuleUrl, importObject) => {
 
 ```js
 // polyfillを定義した場合
-    if (WebAssembly.instantiateStreaming) {
-        response = await WebAssembly.instantiateStreaming(
-            fetch(wasmModuleUrl),
-            importObject
-        );
-    } else {
-        const fetchAndInstantiateTask = async () => {
-            const wasmArrayBuffer = await fetch(wasmModuleUrl).then(response =>
-                response.arrayBuffer()
-            );
-            return WebAssembly.instantiate(wasmArrayBuffer, importObject);
-        };
-        response = await fetchAndInstantiateTask();
-    }
+if (WebAssembly.instantiateStreaming) {
+	response = await WebAssembly.instantiateStreaming(
+		fetch(wasmModuleUrl),
+		importObject
+	);
+} else {
+	const fetchAndInstantiateTask = async () => {
+		const wasmArrayBuffer = await fetch(wasmModuleUrl).then((response) =>
+			response.arrayBuffer()
+		);
+		return WebAssembly.instantiate(wasmArrayBuffer, importObject);
+	};
+	response = await fetchAndInstantiateTask();
+}
 ```
 
-一方、呼び出し側の`index.html`から、WASMの呼び出し部分を切り出して別のファイルにすると以下のようになります。
-
+一方、呼び出し側の`index.html`から、WASM の呼び出し部分を切り出して別のファイルにすると以下のようになります。
 
 index.js
+
 ```js
-import {
-    wasmBrowserInstantiate
-} from "./instantiateWasm.js";
+import { wasmBrowserInstantiate } from "./instantiateWasm.js";
 
 const go = new Go(); // Defined in wasm_exec.js. Don't forget to add this in your index.html.
 
@@ -1772,25 +1770,28 @@ const go = new Go(); // Defined in wasm_exec.js. Don't forget to add this in you
 go.importObject.env["syscall/js.finalizeRef"] = () => {};
 
 const runWasm = async () => {
-    // Get the importObject from the go instance.
-    const importObject = go.importObject;
+	// Get the importObject from the go instance.
+	const importObject = go.importObject;
 
-    // wasm moduleのインスタンスを作成
-    const wasmModule = await wasmBrowserInstantiate("./unixtime.wasm", importObject);
+	// wasm moduleのインスタンスを作成
+	const wasmModule = await wasmBrowserInstantiate(
+		"./unixtime.wasm",
+		importObject
+	);
 
-    go.run(wasmModule.instance);
+	go.run(wasmModule.instance);
 
-    wasmModule.instance.exports.setTimeZone();
-    setInterval(wasmModule.instance.exports.clock, 200);
-    document.getElementById("in").addEventListener("input", wasmModule.instance.exports.convTime);
+	wasmModule.instance.exports.setTimeZone();
+	setInterval(wasmModule.instance.exports.clock, 200);
+	document
+		.getElementById("in")
+		.addEventListener("input", wasmModule.instance.exports.convTime);
 };
 runWasm();
 ```
 
 - インスタンス生成部分とメインの処理部分を分離して分かりやすくなりました
-- （`wasmModule.instance.exports.`部分がやや鬱陶しいですが、）Goの関数をJavascriptネイティブの関数のように扱うことができるようになったため、実行方法もJavascriptの書き方になっています
-
-
+- （`wasmModule.instance.exports.`部分がやや鬱陶しいですが、）Go の関数を Javascript ネイティブの関数のように扱うことができるようになったため、実行方法も Javascript の書き方になっています
 
 最後に、この`index.js`を`index.html`から呼びだせば終わりです。
 
@@ -1805,6 +1806,65 @@ runWasm();
 ```
 
 かなり見やすくなったかと思います。
+
+### export を使った関数の限界
+
+とても素敵な機能に思える TinyGo の`//export`ですが、これを書いている 2022 年 3 月の現時点ではとても大きな問題があります。
+
+それは、**WASM では直接文字列をやりとりできないことです**
+
+以下が WASM の扱える型の種類です。
+https://github.com/WebAssembly/design/blob/main/Semantics.md#types
+
+```
+WebAssembly has the following value types:
+
+i32: 32-bit integer
+i64: 64-bit integer
+f32: 32-bit floating point
+f64: 64-bit floating point
+```
+
+そのため、例えば以下のような方法で直接文字列を関数に渡したり返してもらうことはできません
+
+```go
+// 以下のようにTinyGoで関数を使うことはできない
+
+//export printMessage
+func printMessage(s string) { // stringを受け取ることができない
+	fmt.Println("hello:", s)
+}
+
+//export returnString
+func returnString() string {
+	return "hello" // stringを返すこともできない
+}
+```
+
+int 型は扱えるので、変数のアドレスと長さを計算してそれを関数に渡す方法があるにはありますが、とても分かりやすいとは言えません。
+
+参考
+
+- https://github.com/tinygo-org/tinygo/issues/645
+- https://github.com/tinygo-org/tinygo/issues/411#issuecomment-503066868
+- https://www.alcarney.me/blog/2020/passing-strings-between-tinygo-wasm/
+- https://stackoverflow.com/questions/41353389/how-can-i-return-a-javascript-string-from-a-webassembly-function
+- https://github.com/tinygo-org/tinygo/issues/1824
+- https://wasmbyexample.dev/examples/webassembly-linear-memory/webassembly-linear-memory.go.en-us.html
+- https://nulab.com/ja/blog/nulab/basic-webassembly-begginer/
+- https://zenn.dev/summerwind/articles/96f2aae05b6614
+
+また仮に文字列を１つ渡せても２つ以上はできないので、その場合は json などでデコードして渡す必要があります
+
+TinyGo での json 参考
+
+- https://github.com/tinygo-org/tinygo/issues/447
+- https://github.com/mailru/easyjson
+- https://www.sambaiz.net/article/193/
+- https://stackoverflow.com/questions/40587860/using-easyjson-with-golang/44757748
+- https://github.com/tinygo-org/tinygo/pull/2314
+
+以上の理由から、TinyGo でも`//export`を使いまくるわけにはいかず、文字列のやり取りをする際は素直に js パッケージを使って Javascript とやり取りしたほうが便利な場面が多そうです。
 
 # -------------------------------
 

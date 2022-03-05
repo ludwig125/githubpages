@@ -11,6 +11,37 @@ import (
 )
 
 func main() {
+	c := make(chan struct{})
+	registerCallbacks()
+	<-c
+
+}
+
+func registerCallbacks() {
+	js.Global().Set("PassUint8ArrayToGo", js.FuncOf(PassUint8ArrayToGo))
+	js.Global().Set("SetUint8ArrayInGo", js.FuncOf(SetUint8ArrayInGo))
+}
+
+func PassUint8ArrayToGo(this js.Value, args []js.Value) interface{} {
+	received := make([]byte, args[0].Get("length").Int())
+	_ = js.CopyBytesToGo(received, args[0])
+	fmt.Printf("received: '%v', '%v'\n", received, string(received))
+	return nil
+}
+
+func SetUint8ArrayInGo(this js.Value, args []js.Value) interface{} {
+	fmt.Println("args[0]", args[0])
+	str := "これはテストinGo"
+	// _ = js.CopyBytesToJS(args[0], []byte{0, 9, 21, 32, 44, 55})
+	_ = js.CopyBytesToJS(args[0], []byte(str))
+	return nil
+}
+
+//export passUint8ArrayToGo
+func passUint8ArrayToGo(args []js.Value) {
+	received := make([]byte, args[0].Get("length").Int())
+	_ = js.CopyBytesToGo(received, args[0])
+	fmt.Printf("received: '%v', '%v'\n", received, string(received))
 }
 
 var buf [1024]byte
@@ -32,11 +63,6 @@ func calcAdd2(x string) map[string]interface{} {
 	println("yahooooo2")
 	fmt.Printf("calcAdd2 x,y: '%s'\n", x)
 	return calculatorWrapper("add", x, x)
-}
-
-func SetUint8ArrayInGo(this js.Value, args []js.Value) interface{} {
-	_ = js.CopyBytesToJS(args[0], []byte{0, 9, 21, 32})
-	return nil
 }
 
 // //export calcAdd3

@@ -84,12 +84,36 @@ const runWasm = async (w) => {
 	// wasmModule.instance.exports.setTimeZone();
 	// setInterval(wasmModule.instance.exports.clock, 200);
 	// document.getElementById("in").addEventListener("input", wasmModule.instance.exports.convTime);
+
+	// 変換
+
+	const mystring2 = "これはテスト2";
+	// var array_to_pass = new Uint8Array([0, 9, 21, 32]);
+	var array_to_pass = new TextEncoder().encode(mystring2);
+	console.log("array_to_pass:", array_to_pass);
+	PassUint8ArrayToGo(array_to_pass);
+	console.log("array_to_pass2:", array_to_pass);
+
+	var array_to_set = new Uint8Array(30);
+	// const mystring = "これはテスト";
+	// var array_to_set = new TextEncoder().encode(mystring);
+	// console.log("array_to_set:", array_to_set);
+	SetUint8ArrayInGo(array_to_set);
+	console.log("array_to_set2:", array_to_set);
+	console.log(array_to_set[0]); // 42
+	console.log(array_to_set.length); // 2
+	var str = new TextDecoder().decode(array_to_set);
+	console.log(str);
+
+	const mystring3 = "これはテスト3";
+	var array_to_pass3 = new TextEncoder().encode(mystring3);
+	wasmModule.instance.exports.passUint8ArrayToGo(array_to_pass3);
 };
 runWasm();
 
 // calcAddExport("1", "3");
 
-// 📁 sayHi.js
+//  sayHi.js
 export function sayHi(user) {
 	console.log(`Hello, ${user}!`);
 }
