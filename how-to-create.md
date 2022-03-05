@@ -1866,15 +1866,20 @@ TinyGo での json 参考
 
 以上の理由から、TinyGo でも`//export`を使いまくるわけにはいかず、文字列のやり取りをする際は素直に js パッケージを使って Javascript とやり取りしたほうが便利な場面が多そうです。
 
-# -------------------------------
+# WASM の Web ツールを github pages で公開する
 
-今回、WASM でやりたいことを実現するのにこのような方法を用いましたが、実をいうとこれが最善手なのか分かっていません。
-私が Javascript や WASM の賢い書き方に詳しくないだけの可能性もありますが、
-とりあえず納得いくものが得られたのでこれで完成とします。
+やっと最後になりました。
 
-# WASM の
+WASM の Web ツールを github pages で公開する方法はすでに書きました。
 
-前述の「計算機３」のコードを`docs/calc3`に配置して、上の Unixtime 変換ツールを
+ただ、個人的に気になったのが、
+複数の Web ツールを一つのページ以下に置く方法です。
+
+例えばすでに作った計算機と Unixtime ツールを一つのページ以下にぶら下げるにはどうすればいいでしょうか？
+
+github pages の仕様上、すべて`/docs`ディレクトリ以下にツールを配置する必要があります。
+
+ここに置く、Web ツールの Top ページとして、`index.html`を作ると以下のようになるでしょう
 
 ```html
 <html>
@@ -1882,14 +1887,72 @@ TinyGo での json 参考
 		<meta charset="utf-8" />
 		<link rel="shortcut icon" href="#" />
 	</head>
+
 	<body>
 		<ul>
-			<li><a href="./calc3/calc3.html">Calculator</a></li>
-			<li><a href="./unixtime/unixtime.html">Unixtime変換ツール</a></li>
+			<li><a href="./calc3_tinygo/calc.html">Calculator</a></li>
+			<li>
+				<a href="./calc3_tinygo_tricky_args/calc.html">Calculator(不具合)</a>
+			</li>
+			<li><a href="./unixtime_tinygo/unixtime.html">Unixtime変換ツール</a></li>
 		</ul>
 	</body>
 </html>
 ```
+
+これまでに作った計算機（TinyGo 版）を`Calculator`、Unixtime ツール（TinyGo 版）を`Unixtime変換ツール`として Top ページ以下に配置しました。
+
+- `Calculator(不具合)`は、前述の TinyGo の`//export`を使った場合でも文字列を直接関数に受け渡しする方法をあれこれ考えて、完成させる前に諦めたものです。
+  もしやる気になったら直すかもしれません（時間かけすぎて挫折してトラウマなのでもう触らない気もします）
+
+ここで気になる点は、複数の Web ツールのディレクトリそれぞれに、`wasm_exec.js`や、`WebAssembly.instantiateStreaming`をするだけの`instantiateWasm.js`を配置するのは無駄に思えることです。
+
+そこで、`wasm_exec.js`と`instantiateWasm.js`は`/docs`以下において、その下の Web ツールから呼びだすようにしました。
+
+以下のような構成では、
+
+```
+$tree docs
+docs
+├── calc3_tinygo
+│   ├── calc.go
+│   ├── calc.html
+│   ├── calc.js
+│   └── calc.wasm
+省略
+├── index.html
+├── instantiateWasm.js
+└── wasm_exec.js
+```
+
+`/docs/calc3_tinygo`の中の`calc.js`から`instantiateWasm.js`を import するには以下のように`../`で相対パスを指定します。
+
+```
+import { wasmBrowserInstantiate } from "../instantiateWasm.js";
+```
+
+同様に、`/docs/calc3_tinygo`の中の`calc.html`から`wasm_exec.js`を呼びだすためには以下のように相対パスを指定すればいいです。
+
+```html
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>wasam-calculator</title>
+		<link rel="shortcut icon" href="#" />
+		<script src="../wasm_exec.js"></script>
+		← この部分
+		<script type="module" src="./calc.js"></script>
+	</head>
+</html>
+```
+
+コード
+
+- https://github.com/ludwig125/githubpages/tree/main
+
+今回、WASM でやりたいことを実現するのにこのような方法を用いましたが、実をいうとこれが最善手なのか分かっていません。
+私が Javascript や WASM の賢い書き方に詳しくないだけの可能性もありますが、
+とりあえず納得いくものが得られたのでこれで完成とします。
 
 # 参考
 
