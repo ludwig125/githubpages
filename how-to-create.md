@@ -4,6 +4,14 @@ WebAssembly 略称 WASM に興味があったので、Go で Web ツールを作
 Web ページを無料で作れるところを探したところ、
 github pages が良さそうだったのでこれを使ってみました。
 
+コードはこちら
+
+- https://github.com/ludwig125/githubpages/tree/main
+
+最終的に作ったページは以下です
+
+- https://ludwig125.github.io/githubpages/
+
 ## 環境と言語
 
 私は Windows 上の WSL で Ubuntu20.04 を使っています。
@@ -1949,6 +1957,22 @@ import { wasmBrowserInstantiate } from "../instantiateWasm.js";
 コード
 
 - https://github.com/ludwig125/githubpages/tree/main
+
+これでコミットして Push すると、以下のページで Web ツールが見られるようになります
+
+https://ludwig125.github.io/githubpages/
+
+![image](https://user-images.githubusercontent.com/18366858/156902556-2f717b31-2e04-48b3-8ad2-1cfdba6cd9d5.png)
+
+https://ludwig125.github.io/githubpages/calc3_tinygo/calc.html
+
+![image](https://user-images.githubusercontent.com/18366858/156902575-ebce128e-3889-4420-8d87-fd694441c1d7.png)
+
+https://ludwig125.github.io/githubpages/unixtime_tinygo/unixtime.html
+
+![image](https://user-images.githubusercontent.com/18366858/156902582-f544ca9c-c74d-4fd5-a146-23c32279f698.png)
+
+以上で最低限の機能は確認できました。
 
 今回、WASM でやりたいことを実現するのにこのような方法を用いましたが、実をいうとこれが最善手なのか分かっていません。
 私が Javascript や WASM の賢い書き方に詳しくないだけの可能性もありますが、
