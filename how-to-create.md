@@ -1980,12 +1980,46 @@ https://ludwig125.github.io/githubpages/unixtime_tinygo/unixtime.html
 
 # 参考
 
+以下参考にさせていただいた記事です
+
+大変助かりました
+
+https://github.com/golang/go/wiki/WebAssembly#getting-started
+https://tutorialedge.net/golang/go-webassembly-tutorial/
+https://github.com/golangbot/webassembly
+https://wasmbyexample.dev/examples/hello-world/hello-world.go.en-us.html
+https://golangbot.com/webassembly-using-go/
+https://morioh.com/p/385c092f41a9
+https://github.com/teamortix/golang-wasm
+https://github.com/wasmerio/wasmer-go
+https://itnext.io/webassemply-with-golang-by-scratch-e05ec5230558
+https://levelup.gitconnected.com/best-practices-for-webassembly-using-golang-1-15-8dfa439827b8
+https://medium.zenika.com/go-1-11-webassembly-for-the-gophers-ae4bb8b1ee03
+https://github.com/nlepage/golang-wasm/tree/master/examples
+https://www.aaron-powell.com/posts/2019-02-08-golang-wasm-5-compiling-with-webpack/
+https://blog.suborbital.dev/foundations-wasm-in-golang-is-fantastic
+https://withblue.ink/2020/10/03/go-webassembly-http-requests-and-promises.html
 https://www.aaron-powell.com/posts/2019-02-05-golang-wasm-2-writing-go/ js
 https://hmaster.net/table4.html http://mh.rgr.jp/memo/mh0025.htm wasm clock
 https://github.com/Yaoir/ClockExample-Go-WebAssembly リアルタイム時刻
 https://ja.javascript.info/events-change-input
 https://www.w3schools.com/howto/howto_html_clear_input.asp ← わかりやすかったです
-https://dev.bitolog.com/go-in-the-browser-using-webassembly/
+https://dev.bitolog.com/go-in-the-browser-using-webassembly/ ← わかりやすかったです
 https://golangbot.com/go-webassembly-dom-access/
-https://github.com/golangbot/webassembly/blob/tutorial2/cmd/wasm/main.go
 https://tinygo.org/docs/guides/webassembly/
+https://github.com/rfong/wasm-tinygo-hello
+https://re-engines.com/2021/11/01/go-wasm-promise/
+https://www.kabuku.co.jp/developers/annoying-go-wasm
+https://medium.zenika.com/go-webassembly-binding-structures-to-js-references-4eddd6fd4d23
+
+以下日本語の記事
+https://golangtokyo.github.io/codelab/go-webassembly/?index=codelab#3
+https://buildersbox.corp-sansan.com/entry/2019/02/14/113000#f-820845f5
+https://liginc.co.jp/333868
+https://qiita.com/daemonkimura/items/941f9e6f55f6c99cc096
+https://tanabebe.hatenablog.com/entry/2019/09/01/124141
+https://zenn.dev/nobonobo/books/85e605893d44ebe7dd3f/viewer/b5ac64d9135e123e367a
+https://zenn.dev/tomi/articles/2020-11-10-go-web11
+https://miyanokomiya.tokyo/2018/12/go-wasm/
+https://blog.narumium.net/2019/03/09/%E3%80%90go%E3%80%91ver1-12%E3%81%A7%E3%81%AEwebassembly/
+https://blog.narumium.net/2019/03/17/%E3%80%90go%E3%80%91wasm%E4%BD%9C%E6%88%90%E3%81%A7%E4%BD%BF%E3%81%86syscall-js%E3%81%AE%E5%9E%8B%E5%A4%89%E6%8F%9B/
